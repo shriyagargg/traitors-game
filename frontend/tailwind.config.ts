@@ -9,32 +9,37 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        void: "#070709",
-        charcoal: {
-          900: "#0f0f14",
-          800: "#171720",
-          700: "#242432",
-        },
-        burgundy: {
-          950: "#1a060e",
-          900: "#2b0a17",
-          800: "#4a0e26",
-          700: "#881337",
-        },
-        architect: {
-          purple: "#2a124d",
-          deep: "#150927",
-          glow: "#9333ea",
-        },
-        gold: {
-          accent: "#d4af37",
-          light: "#f3e5ab",
-          muted: "#997d29",
-        },
+        background: "#09060D",
+        "bg-secondary": "#120A14",
+        "burgundy-deep": "#24101F",
+        "purple-muted": "#54265F",
+        "purple-glow": "#8B4AA8",
+        "gold-antique": "#D4AF37",
+        "gold-light": "#F2D89A",
+        "text-main": "#F5EEDC",
+        "text-secondary": "#C7BAC8",
       },
       fontFamily: {
-        cinematic: ["Georgia", "serif"],
-        sans: ["Inter", "sans-serif"],
+        cinzel: ["var(--font-cinzel)", "Cinzel", "Georgia", "serif"],
+        cormorant: [
+          "var(--font-cormorant)",
+          "Cormorant Garamond",
+          "Garamond",
+          "Georgia",
+          "serif",
+        ],
+        sans: [
+          "var(--font-inter)",
+          "Inter",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "sans-serif",
+        ],
+      },
+      boxShadow: {
+        "gold-soft": "0 0 25px rgba(212, 175, 55, 0.25)",
+        "gold-button": "0 0 20px rgba(212, 175, 55, 0.35)",
+        "purple-halo": "0 0 40px rgba(139, 74, 168, 0.3)",
       },
     },
   },

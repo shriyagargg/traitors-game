@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Gamepad2,
   Users,
@@ -32,6 +33,8 @@ export function CreateGameForm({
   onCapacityChange,
   onRoomCreated,
 }: CreateGameFormProps) {
+  const router = useRouter();
+
   // Form State
   const [roomName, setRoomName] = useState("Somya's Game Room");
   const [nightDuration, setNightDuration] = useState(60);
@@ -67,9 +70,18 @@ export function CreateGameForm({
 
       const res = await createRoom(config);
       setResult(res);
-      if (res.success && onRoomCreated) {
-        onRoomCreated(res);
-      } else if (!res.success) {
+      if (res.success) {
+        if (onRoomCreated) {
+          onRoomCreated(res);
+        }
+        setTimeout(() => {
+          router.push(
+            `/lobby?code=${res.roomCode || "A7K4D9"}&name=${encodeURIComponent(
+              config.roomName
+            )}&capacity=${config.playerCapacity}&private=${config.isPrivate}`
+          );
+        }, 700);
+      } else {
         setErrorMessage(res.message);
       }
     } catch {

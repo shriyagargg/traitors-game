@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Users, Key, ArrowRight, Loader2 } from "lucide-react";
 import { joinRoom, RoomOperationResult } from "@/services/rooms";
 
@@ -10,6 +11,7 @@ interface JoinGamePanelProps {
 }
 
 export function JoinGamePanel({ onSwitchToCreate, onRoomJoined }: JoinGamePanelProps) {
+  const router = useRouter();
   const [roomCode, setRoomCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -35,9 +37,14 @@ export function JoinGamePanel({ onSwitchToCreate, onRoomJoined }: JoinGamePanelP
     try {
       const res = await joinRoom(roomCode);
       setResult(res);
-      if (res.success && onRoomJoined) {
-        onRoomJoined(res);
-      } else if (!res.success) {
+      if (res.success) {
+        if (onRoomJoined) {
+          onRoomJoined(res);
+        }
+        setTimeout(() => {
+          router.push(`/lobby?code=${res.roomCode || roomCode}`);
+        }, 700);
+      } else {
         setErrorMessage(res.message);
       }
     } catch {

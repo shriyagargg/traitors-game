@@ -1,12 +1,31 @@
-import React from "react";
-import type { Metadata } from "next";
+"use client";
+
+import React, { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { GameHubContainer } from "@/components/game/GameHubContainer";
+import { DiscussionContainer } from "@/components/discussion/DiscussionContainer";
 
-export const metadata: Metadata = {
-  title: "Create or Join a Game — AI TRAITORS: The Architect",
-  description: "Gather your allies (or rivals) and step into the game.",
-};
+function GamePageContent() {
+  const searchParams = useSearchParams();
+  const room = searchParams.get("room") || searchParams.get("play");
 
-export default function GameHubPage() {
+  if (room) {
+    return <DiscussionContainer roomCode={room} roundNumber={2} />;
+  }
+
   return <GameHubContainer initialTab="create" />;
+}
+
+export default function GamePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#09060D] flex items-center justify-center text-gold-light font-cinzel">
+          Loading AI Traitors...
+        </div>
+      }
+    >
+      <GamePageContent />
+    </Suspense>
+  );
 }

@@ -43,6 +43,7 @@ export default function ProfilePage() {
                   src={MOCK_PLAYER_PROFILE.avatarUrl}
                   alt={MOCK_PLAYER_PROFILE.name}
                   fill
+                  unoptimized
                   className="object-cover"
                 />
               </div>

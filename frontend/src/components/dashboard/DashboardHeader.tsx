@@ -193,6 +193,7 @@ export function DashboardHeader({
                 alt={profile.name}
                 fill
                 sizes="32px"
+                unoptimized
                 className="object-cover"
               />
             </div>

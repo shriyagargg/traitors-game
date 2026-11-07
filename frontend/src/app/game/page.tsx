@@ -6,6 +6,7 @@ import { GameHubContainer } from "@/components/game/GameHubContainer";
 import { DiscussionContainer } from "@/components/discussion/DiscussionContainer";
 import { NightContainer } from "@/components/night/NightContainer";
 import { MorningContainer } from "@/components/morning/MorningContainer";
+import { VotingContainer } from "@/components/voting/VotingContainer";
 
 function GamePageContent() {
   const searchParams = useSearchParams();
@@ -13,6 +14,11 @@ function GamePageContent() {
   const phase = searchParams.get("phase");
   const isNight = phase === "night" || searchParams.get("night") !== null;
   const isMorning = phase === "morning" || searchParams.get("morning") !== null;
+  const isVoting = phase === "voting" || searchParams.get("voting") !== null;
+
+  if (isVoting) {
+    return <VotingContainer roomCode={room || "A7K4D9"} roundNumber={2} />;
+  }
 
   if (isMorning) {
     return <MorningContainer roomCode={room || "A7K4D9"} roundNumber={2} />;

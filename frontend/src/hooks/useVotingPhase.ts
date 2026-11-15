@@ -40,5 +40,6 @@ export function useVotingPhase(roomCode = "A7K4D9", roundNumber = 2) {
     submitVote: () => service.submitVote(),
     resetVote: () => service.resetVote(),
     resetTimer: () => service.resetTimer(),
+    fastForward: () => service.fastForward(),
   };
 }

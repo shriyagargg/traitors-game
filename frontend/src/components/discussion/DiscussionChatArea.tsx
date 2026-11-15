@@ -9,6 +9,7 @@ import {
   MicOff,
   Send,
   Sparkles,
+  Vote,
 } from "lucide-react";
 import { DiscussionMessage, ArchitectAnnouncement } from "@/types/discussion";
 
@@ -19,6 +20,7 @@ interface DiscussionChatAreaProps {
   announcement: ArchitectAnnouncement;
   messages: DiscussionMessage[];
   onSendMessage: (text: string) => void;
+  onProceedToVote?: () => void;
 }
 
 export function DiscussionChatArea({
@@ -28,6 +30,7 @@ export function DiscussionChatArea({
   announcement,
   messages,
   onSendMessage,
+  onProceedToVote,
 }: DiscussionChatAreaProps) {
   const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -66,12 +69,25 @@ export function DiscussionChatArea({
           </div>
         </div>
 
-        {/* Countdown Timer Badge */}
-        <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#1A0E1C] border border-gold-antique/40 shadow-inner">
-          <Clock className="w-5 h-5 text-gold-antique animate-pulse" />
-          <span className="font-mono text-xl sm:text-2xl font-bold text-gold-light tracking-wider">
-            {formattedTimer}
-          </span>
+        {/* Countdown Timer Badge & Proceed Button */}
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-[#1A0E1C] border border-gold-antique/40 shadow-inner">
+            <Clock className="w-4 h-4 text-gold-antique animate-pulse" />
+            <span className="font-mono text-lg sm:text-xl font-bold text-gold-light tracking-wider">
+              {formattedTimer}
+            </span>
+          </div>
+
+          {onProceedToVote && (
+            <button
+              type="button"
+              onClick={onProceedToVote}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gold-antique/15 hover:bg-gold-antique/25 border border-gold-antique/40 text-gold-light text-xs font-semibold transition-all hover:scale-105 active:scale-95"
+            >
+              <span>Call Vote</span>
+              <Vote className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 

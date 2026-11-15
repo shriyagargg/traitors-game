@@ -37,5 +37,6 @@ export function useDiscussion(roomCode = "A7K4D9", roundNumber = 2) {
     sendMessage: (text: string) => service.sendMessage(text),
     togglePlayerStatus: (playerId: string) => service.togglePlayerStatus(playerId),
     resetTimer: () => service.resetTimer(),
+    fastForward: () => service.fastForward(),
   };
 }

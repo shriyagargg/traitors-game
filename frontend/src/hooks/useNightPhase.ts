@@ -48,5 +48,6 @@ export function useNightPhase(
     switchRole: (role: GameRole) => service.switchRole(role),
     resetAction: () => service.resetAction(),
     resetTimer: () => service.resetTimer(),
+    fastForward: () => service.fastForward(),
   };
 }

@@ -24,4 +24,6 @@ export interface VotingPhaseState {
   isSubmitted: boolean;
   submittedTargetName: string | null;
   connectionStatus: "connected" | "mock_preview";
+  isTimeUp?: boolean;
+  allVotesRecorded?: boolean;
 }

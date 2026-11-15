@@ -2,7 +2,8 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
-import { CheckCircle2, Loader2, Lock } from "lucide-react";
+import Link from "next/link";
+import { CheckCircle2, Loader2, Lock, Scale, ArrowRight } from "lucide-react";
 import { VotingTarget } from "@/types/votingPhase";
 
 interface VotingActionPanelProps {
@@ -117,6 +118,17 @@ export function VotingActionPanel({
           <div className="mt-4 flex items-center gap-1.5 text-[11px] font-mono text-text-secondary/50">
             <Lock className="w-3 h-3 text-gold-antique/60" />
             <span>Ballots remain confidential until voting concludes</span>
+          </div>
+
+          <div className="mt-5">
+            <Link
+              href="/game/voting-results"
+              className="py-2.5 px-6 rounded-xl bg-gradient-to-r from-gold-light via-[#F3DEAA] to-gold-antique hover:from-gold-antique hover:to-gold-light text-[#09060D] font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(242,216,154,0.3)] hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Scale className="w-3.5 h-3.5 text-[#09060D]" />
+              <span>Proceed to Vote Tally &amp; Banishment</span>
+              <ArrowRight className="w-3.5 h-3.5 text-[#09060D]" />
+            </Link>
           </div>
         </div>
       )}

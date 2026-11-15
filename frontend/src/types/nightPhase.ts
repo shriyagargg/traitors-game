@@ -36,4 +36,6 @@ export interface NightPhaseState {
   isSubmitted: boolean;
   submittedTargetName: string | null;
   connectionStatus: "connected" | "mock_preview";
+  isTimeUp?: boolean;
+  allActionsResolved?: boolean;
 }

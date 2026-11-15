@@ -7,6 +7,8 @@ import { DiscussionContainer } from "@/components/discussion/DiscussionContainer
 import { NightContainer } from "@/components/night/NightContainer";
 import { MorningContainer } from "@/components/morning/MorningContainer";
 import { VotingContainer } from "@/components/voting/VotingContainer";
+import { VotingResultsContainer } from "@/components/voting-results/VotingResultsContainer";
+import { VictoryContainer } from "@/components/victory/VictoryContainer";
 
 function GamePageContent() {
   const searchParams = useSearchParams();
@@ -15,6 +17,23 @@ function GamePageContent() {
   const isNight = phase === "night" || searchParams.get("night") !== null;
   const isMorning = phase === "morning" || searchParams.get("morning") !== null;
   const isVoting = phase === "voting" || searchParams.get("voting") !== null;
+  const isVotingResults =
+    phase === "voting-results" ||
+    phase === "results" ||
+    searchParams.get("voting-results") !== null ||
+    searchParams.get("results") !== null;
+  const isVictory =
+    phase === "victory" ||
+    phase === "endgame" ||
+    searchParams.get("victory") !== null;
+
+  if (isVictory) {
+    return <VictoryContainer roomCode={room || "A7K4D9"} />;
+  }
+
+  if (isVotingResults) {
+    return <VotingResultsContainer roomCode={room || "A7K4D9"} roundNumber={2} />;
+  }
 
   if (isVoting) {
     return <VotingContainer roomCode={room || "A7K4D9"} roundNumber={2} />;

@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.v1.health import router as health_router
+from app.api.v1.game import router as game_router
 
 app = FastAPI(
     title=f"{settings.PROJECT_NAME} — {settings.ARCHITECT_NAME}",
@@ -23,6 +24,7 @@ if settings.BACKEND_CORS_ORIGINS:
 
 # Register API Routers
 app.include_router(health_router, prefix=settings.API_V1_STR, tags=["System Health"])
+app.include_router(game_router, prefix=settings.API_V1_STR, tags=["Game Engine & WebSockets"])
 
 
 @app.get("/")

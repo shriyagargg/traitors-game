@@ -122,9 +122,35 @@ export class NightPhaseService {
 
     this.timerInterval = setInterval(() => {
       if (this.state.timerSeconds > 0) {
-        this.updateState({ timerSeconds: this.state.timerSeconds - 1 });
+        const nextSec = this.state.timerSeconds - 1;
+        this.updateState({
+          timerSeconds: nextSec,
+          isTimeUp: nextSec === 0,
+        });
+        if (nextSec === 0 && !this.state.isSubmitted) {
+          const eligible = this.getEligibleTargets();
+          if (eligible.length > 0) {
+            this.selectTarget(eligible[0].id);
+            this.submitAction();
+          }
+        }
+      } else {
+        this.updateState({ isTimeUp: true });
       }
     }, 1000);
+  }
+
+  public fastForward() {
+    if (!this.state.selectedTargetId && this.state.currentRole !== "faithful") {
+      const eligible = this.getEligibleTargets();
+      if (eligible.length > 0) {
+        this.selectTarget(eligible[0].id);
+      }
+    }
+    this.updateState({ timerSeconds: 0, isTimeUp: true });
+    if (!this.state.isSubmitted) {
+      this.submitAction();
+    }
   }
 
   public getState(): NightPhaseState {
@@ -199,6 +225,10 @@ export class NightPhaseService {
       isSubmitted: true,
       submittedTargetName: targetName,
     });
+
+    setTimeout(() => {
+      this.updateState({ allActionsResolved: true });
+    }, 1200);
 
     return {
       success: true,

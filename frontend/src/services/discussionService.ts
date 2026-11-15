@@ -200,9 +200,19 @@ export class DiscussionService {
 
     this.timerInterval = setInterval(() => {
       if (this.state.timerSeconds > 0) {
-        this.updateState({ timerSeconds: this.state.timerSeconds - 1 });
+        const nextSec = this.state.timerSeconds - 1;
+        this.updateState({
+          timerSeconds: nextSec,
+          isTimeUp: nextSec === 0,
+        });
+      } else {
+        this.updateState({ isTimeUp: true });
       }
     }, 1000);
+  }
+
+  public fastForward() {
+    this.updateState({ timerSeconds: 0, isTimeUp: true });
   }
 
   public getState(): DiscussionState {
@@ -256,6 +266,44 @@ export class DiscussionService {
         })
       );
     }
+
+    // Simulate realistic social deduction reply from another living council member
+    setTimeout(() => {
+      const livingOthers = this.state.players.filter(
+        (p) => p.isAlive && !p.isCurrentUser
+      );
+      if (livingOthers.length === 0) return;
+
+      const responder =
+        livingOthers[Math.floor(Math.random() * livingOthers.length)];
+      const replies = [
+        "I hear you, Somya, but we need hard proof before we rush into a vote.",
+        "Notice who has been deflecting the conversation since morning. It's telling.",
+        "That makes a lot of sense. Arnav was targeted for a reason last night.",
+        "We only have a few minutes before the ballot opens. Let's make this count.",
+        "I'm watching the quieter players closely today. Silence speaks volumes.",
+        "Whoever is responsible for the night murder is trying to divide the council.",
+        "I agree with that. The Traitors are definitely trying to steer the vote.",
+      ];
+      const replyText = replies[Math.floor(Math.random() * replies.length)];
+      const replyTime = new Date().toLocaleTimeString([], {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+
+      const replyMsg: DiscussionMessage = {
+        id: `msg_ai_${Date.now()}`,
+        senderId: responder.id,
+        senderName: responder.name.replace(" (You)", ""),
+        avatarUrl: responder.avatarUrl,
+        timestamp: replyTime,
+        text: replyText,
+      };
+
+      this.updateState({
+        messages: [...this.state.messages, replyMsg],
+      });
+    }, 1200);
   }
 
   // Demo simulation helper: Toggle player alive/eliminated

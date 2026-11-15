@@ -1,6 +1,7 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { MorningPlayerList } from "../morning/MorningPlayerList";
 import { VotingHeader } from "./VotingHeader";
@@ -9,7 +10,7 @@ import { VotingActionPanel } from "./VotingActionPanel";
 import { useVotingPhase } from "@/hooks/useVotingPhase";
 import { MOCK_PLAYER_PROFILE } from "@/services/dashboard";
 import { INITIAL_VOTING_PLAYERS } from "@/services/votingService";
-import { Radio, RotateCcw } from "lucide-react";
+import { Radio, RotateCcw, FastForward, Scale, ArrowRight, Loader2 } from "lucide-react";
 
 interface VotingContainerProps {
   roomCode?: string;
@@ -20,6 +21,7 @@ export function VotingContainer({
   roomCode = "A7K4D9",
   roundNumber = 2,
 }: VotingContainerProps) {
+  const router = useRouter();
   const {
     state,
     targets,
@@ -28,7 +30,29 @@ export function VotingContainer({
     submitVote,
     resetVote,
     resetTimer,
+    fastForward,
   } = useVotingPhase(roomCode, roundNumber);
+
+  const [isAdvancing, setIsAdvancing] = useState(false);
+
+  const handleProceedToResults = () => {
+    if (isAdvancing) return;
+    setIsAdvancing(true);
+    setTimeout(() => {
+      router.push(`/game/voting-results?room=${state.roomCode}&round=${state.roundNumber}`);
+    }, 700);
+  };
+
+  // Auto-transition when vote is submitted or timer ends
+  useEffect(() => {
+    if ((state.allVotesRecorded || state.timerSeconds === 0) && !isAdvancing) {
+      setIsAdvancing(true);
+      const timer = setTimeout(() => {
+        router.push(`/game/voting-results?room=${state.roomCode}&round=${state.roundNumber}`);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [state.allVotesRecorded, state.timerSeconds, isAdvancing, router, state.roomCode, state.roundNumber]);
 
   // Map INITIAL_VOTING_PLAYERS to MorningPlayer shape for player list
   const playerList = INITIAL_VOTING_PLAYERS.map((p) => ({
@@ -61,6 +85,17 @@ export function VotingContainer({
 
       {/* 3. Main Master 2-Column Layout */}
       <main className="flex-1 w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-5 z-10 flex flex-col justify-between gap-4">
+        {/* All Ballots Recorded / Advancing Banner */}
+        {isAdvancing && (
+          <div className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-gold-antique/20 via-purple-muted/30 to-gold-antique/20 border border-gold-antique/60 flex items-center justify-between text-xs sm:text-sm font-sans text-gold-light shadow-[0_0_20px_rgba(212,175,55,0.3)] animate-in fade-in duration-300">
+            <div className="flex items-center gap-2.5">
+              <Loader2 className="w-4 h-4 animate-spin text-gold-antique" />
+              <span className="font-semibold">All ballots recorded! Summoning the Council to the Circle of Truth...</span>
+            </div>
+            <span className="font-mono text-xs text-gold-antique">Tallying Votes...</span>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch flex-1">
           {/* LEFT COLUMN: Player List (3 cols on lg = ~25% width) */}
           <div className="lg:col-span-3 flex flex-col">
@@ -74,6 +109,7 @@ export function VotingContainer({
               <VotingHeader
                 roundNumber={state.roundNumber}
                 formattedTimer={formattedTimer}
+                onProceedToResults={handleProceedToResults}
               />
 
               {/* Exactly One Architect Announcement Banner */}
@@ -106,15 +142,33 @@ export function VotingContainer({
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="text-text-secondary/50">Evaluation Tools:</span>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <button
+              onClick={handleProceedToResults}
+              disabled={isAdvancing}
+              className="py-1.5 px-3.5 rounded-xl bg-gradient-to-r from-gold-light to-gold-antique text-[#09060D] font-bold text-xs flex items-center gap-1.5 shadow-[0_0_15px_rgba(212,175,55,0.3)] hover:scale-105 active:scale-95 transition-all"
+            >
+              <Scale className="w-3.5 h-3.5 text-[#09060D]" />
+              <span>Proceed to Results</span>
+              <ArrowRight className="w-3.5 h-3.5 text-[#09060D]" />
+            </button>
+
+            <button
+              onClick={fastForward}
+              className="px-2.5 py-1 rounded-lg bg-[#1A0E1C] hover:bg-[#251528] border border-gold-antique/20 text-gold-light text-[10px] flex items-center gap-1 transition"
+              title="Fast-forward vote submission and timer"
+            >
+              <FastForward className="w-3 h-3 text-gold-antique" />
+              <span>Fast-Forward</span>
+            </button>
+
             <button
               onClick={resetTimer}
               className="px-2 py-1 rounded bg-[#1A0E1C] hover:bg-[#251528] border border-gold-antique/20 text-gold-light text-[10px] flex items-center gap-1.5 transition"
               title="Reset countdown timer to 01:30"
             >
               <RotateCcw className="w-3 h-3 text-gold-antique" />
-              <span>Reset Timer (01:30)</span>
+              <span>Reset (01:30)</span>
             </button>
             <button
               onClick={resetVote}

@@ -34,4 +34,6 @@ export interface DiscussionState {
   players: DiscussionPlayer[];
   messages: DiscussionMessage[];
   connectionStatus: "connected" | "mock_preview";
+  isTimeUp?: boolean;
+  autoAdvanceSeconds?: number;
 }

@@ -134,9 +134,35 @@ export class VotingService {
 
     this.timerInterval = setInterval(() => {
       if (this.state.timerSeconds > 0) {
-        this.updateState({ timerSeconds: this.state.timerSeconds - 1 });
+        const nextSec = this.state.timerSeconds - 1;
+        this.updateState({
+          timerSeconds: nextSec,
+          isTimeUp: nextSec === 0,
+        });
+        if (nextSec === 0 && !this.state.isSubmitted) {
+          const eligible = this.getEligibleTargets();
+          if (eligible.length > 0) {
+            this.selectTarget(eligible[0].id);
+            this.submitVote();
+          }
+        }
+      } else {
+        this.updateState({ isTimeUp: true });
       }
     }, 1000);
+  }
+
+  public fastForward() {
+    if (!this.state.selectedTargetId) {
+      const eligible = this.getEligibleTargets();
+      if (eligible.length > 0) {
+        this.selectTarget(eligible[0].id);
+      }
+    }
+    this.updateState({ timerSeconds: 0, isTimeUp: true });
+    if (!this.state.isSubmitted) {
+      this.submitVote();
+    }
   }
 
   public getState(): VotingPhaseState {
@@ -202,6 +228,11 @@ export class VotingService {
       isSubmitted: true,
       submittedTargetName: targetName,
     });
+
+    // Simulate remaining council members casting ballots
+    setTimeout(() => {
+      this.updateState({ allVotesRecorded: true });
+    }, 1200);
 
     return {
       success: true,

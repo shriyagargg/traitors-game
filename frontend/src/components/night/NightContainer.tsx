@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DiscussionPlayerList } from "../discussion/DiscussionPlayerList";
@@ -25,6 +25,7 @@ export function NightContainer({
   roundNumber = 2,
 }: NightContainerProps) {
   const router = useRouter();
+  const navigatedRef = useRef(false);
   const [isAdvancing, setIsAdvancing] = useState(false);
 
   const {
@@ -42,19 +43,23 @@ export function NightContainer({
 
   // Auto-advance to Morning when timer hits 0 or all actions resolved
   useEffect(() => {
-    if ((state.timerSeconds === 0 || state.allActionsResolved) && !isAdvancing) {
+    if ((state.timerSeconds === 0 || state.allActionsResolved) && !navigatedRef.current) {
+      navigatedRef.current = true;
       setIsAdvancing(true);
       const t = setTimeout(() => {
-        router.push(`/game/morning?room=${state.roomCode}&round=${state.roundNumber}`);
+        router.push(`/game/morning?room=${roomCode}&round=${roundNumber}`);
       }, 1500);
       return () => clearTimeout(t);
     }
-  }, [state.timerSeconds, state.allActionsResolved, isAdvancing, router, state.roomCode, state.roundNumber]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.timerSeconds, state.allActionsResolved]);
 
   const handleProceedToMorning = () => {
+    if (navigatedRef.current) return;
+    navigatedRef.current = true;
     setIsAdvancing(true);
     setTimeout(() => {
-      router.push(`/game/morning?room=${state.roomCode}&round=${state.roundNumber}`);
+      router.push(`/game/morning?room=${roomCode}&round=${roundNumber}`);
     }, 700);
   };
 

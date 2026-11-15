@@ -128,10 +128,21 @@ export class NightPhaseService {
           isTimeUp: nextSec === 0,
         });
         if (nextSec === 0 && !this.state.isSubmitted) {
-          const eligible = this.getEligibleTargets();
-          if (eligible.length > 0) {
-            this.selectTarget(eligible[0].id);
-            this.submitAction();
+          if (this.state.currentRole === "faithful") {
+            // Faithful has no action — just mark resolved so the container navigates
+            setTimeout(() => {
+              this.updateState({ allActionsResolved: true });
+            }, 500);
+          } else {
+            const eligible = this.getEligibleTargets();
+            if (eligible.length > 0) {
+              this.selectTarget(eligible[0].id);
+              this.submitAction();
+            } else {
+              setTimeout(() => {
+                this.updateState({ allActionsResolved: true });
+              }, 500);
+            }
           }
         }
       } else {
@@ -141,13 +152,17 @@ export class NightPhaseService {
   }
 
   public fastForward() {
-    if (!this.state.selectedTargetId && this.state.currentRole !== "faithful") {
+    this.updateState({ timerSeconds: 0, isTimeUp: true });
+    if (this.state.currentRole === "faithful") {
+      setTimeout(() => this.updateState({ allActionsResolved: true }), 300);
+      return;
+    }
+    if (!this.state.selectedTargetId) {
       const eligible = this.getEligibleTargets();
       if (eligible.length > 0) {
         this.selectTarget(eligible[0].id);
       }
     }
-    this.updateState({ timerSeconds: 0, isTimeUp: true });
     if (!this.state.isSubmitted) {
       this.submitAction();
     }

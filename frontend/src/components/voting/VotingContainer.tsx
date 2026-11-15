@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { MorningPlayerList } from "../morning/MorningPlayerList";
@@ -22,6 +22,7 @@ export function VotingContainer({
   roundNumber = 2,
 }: VotingContainerProps) {
   const router = useRouter();
+  const navigatedRef = useRef(false);
   const {
     state,
     targets,
@@ -36,23 +37,26 @@ export function VotingContainer({
   const [isAdvancing, setIsAdvancing] = useState(false);
 
   const handleProceedToResults = () => {
-    if (isAdvancing) return;
+    if (navigatedRef.current) return;
+    navigatedRef.current = true;
     setIsAdvancing(true);
     setTimeout(() => {
-      router.push(`/game/voting-results?room=${state.roomCode}&round=${state.roundNumber}`);
+      router.push(`/game/voting-results?room=${roomCode}&round=${roundNumber}`);
     }, 700);
   };
 
   // Auto-transition when vote is submitted or timer ends
   useEffect(() => {
-    if ((state.allVotesRecorded || state.timerSeconds === 0) && !isAdvancing) {
+    if ((state.allVotesRecorded || state.timerSeconds === 0) && !navigatedRef.current) {
+      navigatedRef.current = true;
       setIsAdvancing(true);
       const timer = setTimeout(() => {
-        router.push(`/game/voting-results?room=${state.roomCode}&round=${state.roundNumber}`);
+        router.push(`/game/voting-results?room=${roomCode}&round=${roundNumber}`);
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [state.allVotesRecorded, state.timerSeconds, isAdvancing, router, state.roomCode, state.roundNumber]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.allVotesRecorded, state.timerSeconds]);
 
   // Map INITIAL_VOTING_PLAYERS to MorningPlayer shape for player list
   const playerList = INITIAL_VOTING_PLAYERS.map((p) => ({

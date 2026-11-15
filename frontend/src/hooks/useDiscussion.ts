@@ -1,17 +1,24 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { DiscussionService } from "@/services/discussionService";
 import { DiscussionState } from "@/types/discussion";
 
 export function useDiscussion(roomCode = "A7K4D9", roundNumber = 2) {
-  const service = useMemo(() => {
-    return new DiscussionService(roomCode, roundNumber);
-  }, [roomCode, roundNumber]);
+  // useRef guarantees exactly ONE service instance per component mount,
+  // even in React 18 Strict Mode (which calls useMemo twice in dev).
+  const serviceRef = useRef<DiscussionService | null>(null);
+  if (serviceRef.current === null) {
+    serviceRef.current = new DiscussionService(roomCode, roundNumber);
+  }
+  const service = serviceRef.current;
 
   const [state, setState] = useState<DiscussionState>(() => service.getState());
 
   useEffect(() => {
+    // Re-sync state in case service already ticked while React mounted
+    setState({ ...service.getState() });
+
     const unsubscribe = service.subscribe((newState) => {
       setState({ ...newState });
     });
@@ -19,10 +26,11 @@ export function useDiscussion(roomCode = "A7K4D9", roundNumber = 2) {
     return () => {
       unsubscribe();
       service.destroy();
+      serviceRef.current = null;
     };
-  }, [service]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — service is stable via ref
 
-  // Format countdown seconds into MM:SS (e.g. 168 -> "02:48")
   const formattedTimer = useMemo(() => {
     const mins = Math.floor(state.timerSeconds / 60);
     const secs = state.timerSeconds % 60;

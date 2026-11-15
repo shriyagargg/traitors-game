@@ -1,19 +1,23 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useRef } from "react";
 import { MorningService } from "@/services/morningService";
 import { MorningAnnouncementState } from "@/types/morningAnnouncement";
 
 export function useMorningAnnouncement(roomCode = "A7K4D9", roundNumber = 2) {
-  const service = useMemo(() => {
-    return new MorningService(roomCode, roundNumber);
-  }, [roomCode, roundNumber]);
+  const serviceRef = useRef<MorningService | null>(null);
+  if (serviceRef.current === null) {
+    serviceRef.current = new MorningService(roomCode, roundNumber);
+  }
+  const service = serviceRef.current;
 
   const [state, setState] = useState<MorningAnnouncementState>(() =>
     service.getState()
   );
 
   useEffect(() => {
+    setState({ ...service.getState() });
+
     const unsubscribe = service.subscribe((newState) => {
       setState({ ...newState });
     });
@@ -21,8 +25,10 @@ export function useMorningAnnouncement(roomCode = "A7K4D9", roundNumber = 2) {
     return () => {
       unsubscribe();
       service.destroy();
+      serviceRef.current = null;
     };
-  }, [service]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return {
     state,

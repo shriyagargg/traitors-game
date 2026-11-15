@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { NightPhaseService, NIGHT_ROLE_CONFIGS } from "@/services/nightPhaseService";
 import { GameRole } from "@/types/roleReveal";
 import { NightPhaseState, NightPlayerTarget, NightRoleConfig } from "@/types/nightPhase";
@@ -10,13 +10,17 @@ export function useNightPhase(
   initialRole: GameRole = "traitor",
   roundNumber = 2
 ) {
-  const service = useMemo(() => {
-    return new NightPhaseService(roomCode, initialRole, roundNumber);
-  }, [roomCode, initialRole, roundNumber]);
+  const serviceRef = useRef<NightPhaseService | null>(null);
+  if (serviceRef.current === null) {
+    serviceRef.current = new NightPhaseService(roomCode, initialRole, roundNumber);
+  }
+  const service = serviceRef.current;
 
   const [state, setState] = useState<NightPhaseState>(() => service.getState());
 
   useEffect(() => {
+    setState({ ...service.getState() });
+
     const unsubscribe = service.subscribe((newState) => {
       setState({ ...newState });
     });
@@ -24,8 +28,10 @@ export function useNightPhase(
     return () => {
       unsubscribe();
       service.destroy();
+      serviceRef.current = null;
     };
-  }, [service]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const config: NightRoleConfig = NIGHT_ROLE_CONFIGS[state.currentRole];
   const targets: NightPlayerTarget[] = service.getEligibleTargets();

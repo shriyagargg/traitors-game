@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DiscussionPlayerList } from "./DiscussionPlayerList";
@@ -20,6 +20,7 @@ export function DiscussionContainer({
   roundNumber = 2,
 }: DiscussionContainerProps) {
   const router = useRouter();
+  const navigatedRef = useRef(false); // one-shot guard — prevents double-fire
   const {
     state,
     formattedTimer,
@@ -32,23 +33,26 @@ export function DiscussionContainer({
   const [isAdvancing, setIsAdvancing] = useState(false);
 
   const handleProceedToVoting = () => {
-    if (isAdvancing) return;
+    if (navigatedRef.current) return;
+    navigatedRef.current = true;
     setIsAdvancing(true);
     setTimeout(() => {
-      router.push(`/game/voting?room=${state.roomCode}&round=${state.roundNumber}`);
+      router.push(`/game/voting?room=${roomCode}&round=${roundNumber}`);
     }, 700);
   };
 
   // Auto-transition when countdown finishes
   useEffect(() => {
-    if (state.timerSeconds === 0 && !isAdvancing) {
+    if (state.timerSeconds === 0 && !navigatedRef.current) {
+      navigatedRef.current = true;
       setIsAdvancing(true);
       const timer = setTimeout(() => {
-        router.push(`/game/voting?room=${state.roomCode}&round=${state.roundNumber}`);
+        router.push(`/game/voting?room=${roomCode}&round=${roundNumber}`);
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [state.timerSeconds, isAdvancing, router, state.roomCode, state.roundNumber]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.timerSeconds]);
 
   return (
     <div className="min-h-screen bg-background text-text-main flex flex-col selection:bg-purple-muted selection:text-gold-light relative overflow-x-hidden">

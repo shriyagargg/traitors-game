@@ -53,15 +53,15 @@ class ArchitectAgent:
         if is_traitor:
             proclamations = [
                 f"The Council's instincts ring true. By a decisive tally of {vote_count} ballots, {banished_name} stood revealed as a TRAITOR. One shadow has been cast out.",
-                f"Justice strikes deep into the dark. {banished_name} confessed their treason before the Circle of Truth. The Faithful strike a vital blow.",
-                f"A wolf in sheep's clothing has been unmasked. {banished_name} leaves the castle in disgrace as a verified Traitor.",
+                f"Justice strikes deep into the dark. {banished_name} confessed before the Circle of Truth: they were a TRAITOR. The Faithful strike a vital blow.",
+                f"A wolf in sheep's clothing has been unmasked. {banished_name} leaves the castle in disgrace as a verified TRAITOR.",
             ]
             return random.choice(proclamations)
 
         proclamations = [
             f"A heavy silence descends upon the Great Hall. By majority decree ({vote_count} votes), you have banished {banished_name}—an innocent FAITHFUL. The Traitors silently smile.",
-            f"Paranoia has claimed another innocent. {banished_name} proclaimed their Faithful allegiance with their dying breath. The castle weeps for your mistake.",
-            f"You sought darkness where there was only daylight. {banished_name} was a Faithful. One less ally stands between you and the ravenous shadows.",
+            f"Paranoia has claimed another innocent. {banished_name} proclaimed their FAITHFUL allegiance with their dying breath. The castle weeps for your mistake.",
+            f"You sought darkness where there was only daylight. {banished_name} was a FAITHFUL. One less ally stands between you and the ravenous shadows.",
         ]
         return random.choice(proclamations)
 

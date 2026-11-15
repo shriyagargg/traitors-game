@@ -90,6 +90,28 @@ export class MorningService {
     };
 
     this.initWebSocket(roomCode);
+    this.fetchMorningAnnouncement(roomCode, roundNumber);
+  }
+
+  private async fetchMorningAnnouncement(roomCode: string, roundNumber: number) {
+    if (typeof window === "undefined") return;
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      // POST to resolve-night — will return Architect-generated announcement
+      const res = await fetch(`${apiUrl}/api/v1/game/${roomCode}/resolve-night`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roundNumber }),
+      });
+      if (!res.ok) throw new Error("resolve-night unavailable");
+      const data = await res.json();
+      if (data.architectAnnouncement) {
+        // Update the announcement text shown in the banner
+        this.updateState({ dynamicAnnouncement: data.architectAnnouncement });
+      }
+    } catch {
+      // Backend offline — static mock announcement stays in place
+    }
   }
 
   private initWebSocket(roomCode: string) {

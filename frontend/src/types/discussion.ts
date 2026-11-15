@@ -15,6 +15,7 @@ export interface DiscussionMessage {
   avatarUrl: string;
   timestamp: string;
   text: string;
+  isArchitect?: boolean;
 }
 
 export interface ArchitectAnnouncement {

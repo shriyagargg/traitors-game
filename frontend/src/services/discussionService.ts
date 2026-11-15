@@ -151,6 +151,39 @@ export class DiscussionService {
 
     this.startCountdown();
     this.initWebSocket(roomCode);
+    this.fetchArchitectHint(roomCode, roundNumber);
+  }
+
+  private async fetchArchitectHint(roomCode: string, roundNumber: number) {
+    if (typeof window === "undefined") return;
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const res = await fetch(`${apiUrl}/api/v1/game/${roomCode}/architect-hint`);
+      if (!res.ok) throw new Error("hint endpoint unavailable");
+      const data = await res.json();
+      const hint: string = data.hint || "";
+      if (!hint) return;
+
+      // Inject Architect hint as a system message at the top of the chat
+      const hintMsg = {
+        id: `msg_architect_hint_${roundNumber}`,
+        senderId: "architect",
+        senderName: "The Architect",
+        avatarUrl: "/images/architect_avatar.png",
+        timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+        text: `🔮 ${hint}`,
+        isArchitect: true,
+      };
+      this.updateState({
+        messages: [hintMsg, ...this.state.messages],
+        announcement: {
+          ...this.state.announcement,
+          message: hint,
+        },
+      });
+    } catch {
+      // Backend not running — keep the static mock announcement, no problem
+    }
   }
 
   private initWebSocket(roomCode: string) {

@@ -16,4 +16,5 @@ export interface MorningAnnouncementState {
   players: MorningPlayer[];
   roleRevealPermitted: boolean;
   connectionStatus: "connected" | "mock_preview";
+  dynamicAnnouncement?: string | null;
 }

@@ -108,35 +108,57 @@ export function DiscussionChatArea({
 
       {/* 3. Discussion Message Feed */}
       <div className="flex-1 overflow-y-auto space-y-3.5 pr-2 my-2 max-h-[360px] scrollbar-thin scrollbar-thumb-gold-antique/15">
-        {messages.map((msg) => (
-          <div key={msg.id} className="flex items-start gap-3 text-left group">
-            {/* Circular Avatar */}
-            <div className="relative w-8 h-8 rounded-full overflow-hidden shrink-0 ring-1 ring-white/10 mt-0.5">
-              <Image
-                src={msg.avatarUrl}
-                alt={msg.senderName}
-                fill
-                unoptimized
-                className="object-cover"
-              />
-            </div>
-
-            {/* Message Body */}
-            <div className="flex-1">
-              <div className="flex items-baseline gap-2">
-                <span className="text-xs sm:text-sm font-semibold text-[#F5EEDC]">
-                  {msg.senderName}
-                </span>
-                <span className="text-[10px] text-text-secondary/40 font-mono">
-                  {msg.timestamp}
-                </span>
+        {messages.map((msg) =>
+          msg.isArchitect ? (
+            // Special Architect hint card in the feed
+            <div key={msg.id} className="flex items-start gap-3 text-left group">
+              <div className="w-8 h-8 rounded-full bg-purple-900/50 border border-purple-400/50 flex items-center justify-center shrink-0 mt-0.5">
+                <Sparkles className="w-4 h-4 text-purple-300" />
               </div>
-              <p className="text-xs sm:text-sm font-sans text-text-secondary leading-relaxed mt-0.5">
-                {msg.text}
-              </p>
+              <div className="flex-1 p-2.5 rounded-xl bg-gradient-to-r from-[#2B1038]/60 to-[#16091F]/60 border border-purple-500/25">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xs font-cinzel font-bold tracking-wider text-purple-300">
+                    {msg.senderName}
+                  </span>
+                  <span className="text-[10px] text-text-secondary/40 font-mono">
+                    {msg.timestamp}
+                  </span>
+                </div>
+                <p className="text-xs font-sans text-[#C7BAC8] italic leading-relaxed mt-0.5">
+                  {msg.text}
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
+          ) : (
+            <div key={msg.id} className="flex items-start gap-3 text-left group">
+              {/* Circular Avatar */}
+              <div className="relative w-8 h-8 rounded-full overflow-hidden shrink-0 ring-1 ring-white/10 mt-0.5">
+                <Image
+                  src={msg.avatarUrl}
+                  alt={msg.senderName}
+                  fill
+                  unoptimized
+                  className="object-cover"
+                />
+              </div>
+
+              {/* Message Body */}
+              <div className="flex-1">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xs sm:text-sm font-semibold text-[#F5EEDC]">
+                    {msg.senderName}
+                  </span>
+                  <span className="text-[10px] text-text-secondary/40 font-mono">
+                    {msg.timestamp}
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm font-sans text-text-secondary leading-relaxed mt-0.5">
+                  {msg.text}
+                </p>
+              </div>
+            </div>
+          )
+        )}
         <div ref={messagesEndRef} />
       </div>
 

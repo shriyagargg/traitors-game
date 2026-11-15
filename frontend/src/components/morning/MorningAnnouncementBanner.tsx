@@ -6,10 +6,12 @@ import { MorningPlayer } from "@/types/morningAnnouncement";
 
 interface MorningAnnouncementBannerProps {
   eliminatedPlayer: MorningPlayer | null;
+  dynamicAnnouncement?: string | null;
 }
 
 export function MorningAnnouncementBanner({
   eliminatedPlayer,
+  dynamicAnnouncement,
 }: MorningAnnouncementBannerProps) {
   return (
     <div className="w-full max-w-2xl mx-auto my-4 p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-[#2B1038] via-[#210D2C] to-[#16091F] border border-[#8B4AA8]/40 shadow-[0_4px_30px_rgba(20,9,28,0.5)] flex items-center justify-center gap-4 text-center">
@@ -26,7 +28,9 @@ export function MorningAnnouncementBanner({
         </p>
 
         <div className="mt-1 text-base sm:text-lg font-cormorant font-semibold text-[#F5EEDC]">
-          {eliminatedPlayer ? (
+          {dynamicAnnouncement ? (
+            <span className="italic text-[#F5EEDC]">{dynamicAnnouncement}</span>
+          ) : eliminatedPlayer ? (
             <span>
               <span className="font-cinzel font-bold text-gold-light text-lg sm:text-xl tracking-wide drop-shadow-[0_0_10px_rgba(212,175,55,0.4)]">
                 {eliminatedPlayer.name}

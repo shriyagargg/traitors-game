@@ -78,6 +78,7 @@ export function MorningContainer({
             {/* The Architect Announcement Banner */}
             <MorningAnnouncementBanner
               eliminatedPlayer={state.eliminatedPlayer}
+              dynamicAnnouncement={state.dynamicAnnouncement}
             />
 
             {/* Eliminated Player Profile Display */}

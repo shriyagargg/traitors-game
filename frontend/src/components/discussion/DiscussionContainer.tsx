@@ -7,6 +7,7 @@ import { DiscussionPlayerList } from "./DiscussionPlayerList";
 import { DiscussionChatArea } from "./DiscussionChatArea";
 import { DiscussionArchitectPanel } from "./DiscussionArchitectPanel";
 import { useDiscussion } from "@/hooks/useDiscussion";
+import { useGamePhaseGuard } from "@/hooks/useGamePhaseGuard";
 import { MOCK_PLAYER_PROFILE } from "@/services/dashboard";
 import { Radio, RotateCcw, Vote, ArrowRight, FastForward, Loader2 } from "lucide-react";
 
@@ -19,27 +20,18 @@ export function DiscussionContainer({
   roomCode = "A7K4D9",
   roundNumber = 2,
 }: DiscussionContainerProps) {
+  useGamePhaseGuard(roomCode, "DISCUSSION");
   const router = useRouter();
   const navigatedRef = useRef(false); // one-shot guard — prevents double-fire
   const {
     state,
     formattedTimer,
     sendMessage,
-    togglePlayerStatus,
     resetTimer,
     fastForward,
   } = useDiscussion(roomCode, roundNumber);
 
   const [isAdvancing, setIsAdvancing] = useState(false);
-
-  const handleProceedToVoting = () => {
-    if (navigatedRef.current) return;
-    navigatedRef.current = true;
-    setIsAdvancing(true);
-    setTimeout(() => {
-      router.push(`/game/voting?room=${roomCode}&round=${roundNumber}`);
-    }, 700);
-  };
 
   // Auto-transition when countdown finishes
   useEffect(() => {
@@ -95,7 +87,6 @@ export function DiscussionContainer({
           <div className="lg:col-span-3 flex flex-col">
             <DiscussionPlayerList
               players={state.players}
-              onTogglePlayerStatus={togglePlayerStatus}
             />
           </div>
 
@@ -108,7 +99,6 @@ export function DiscussionContainer({
               announcement={state.announcement}
               messages={state.messages}
               onSendMessage={sendMessage}
-              onProceedToVote={handleProceedToVoting}
             />
           </div>
 
@@ -122,48 +112,7 @@ export function DiscussionContainer({
           </div>
         </div>
 
-        {/* 4. Evaluator & Demonstration Toolbar */}
-        <div className="w-full flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gold-antique/10 text-[11px] font-sans text-text-secondary/70">
-          <div className="flex items-center gap-2">
-            <Radio className="w-3.5 h-3.5 text-gold-antique animate-pulse" />
-            <span className="text-gold-light/80">Gameplay Channel:</span>
-            <span className="bg-[#1A0E1C] px-2 py-0.5 rounded border border-gold-antique/25 font-mono text-[10px] text-text-main">
-              {state.connectionStatus === "connected"
-                ? "Live WebSocket"
-                : "Mock Evaluation Adapter"}
-            </span>
-          </div>
 
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <button
-              onClick={handleProceedToVoting}
-              disabled={isAdvancing}
-              className="py-1.5 px-3.5 rounded-xl bg-gradient-to-r from-gold-light to-gold-antique text-[#09060D] font-bold text-xs flex items-center gap-1.5 shadow-[0_0_15px_rgba(212,175,55,0.3)] hover:scale-105 active:scale-95 transition-all"
-            >
-              <Vote className="w-3.5 h-3.5 text-[#09060D]" />
-              <span>Proceed to Voting</span>
-              <ArrowRight className="w-3.5 h-3.5 text-[#09060D]" />
-            </button>
-
-            <button
-              onClick={fastForward}
-              className="px-2.5 py-1 rounded-lg bg-[#1A0E1C] hover:bg-[#251528] border border-gold-antique/20 text-gold-light text-[10px] flex items-center gap-1 transition"
-              title="Fast-forward timer to 0:00"
-            >
-              <FastForward className="w-3 h-3 text-gold-antique" />
-              <span>Fast-Forward</span>
-            </button>
-
-            <button
-              onClick={resetTimer}
-              className="px-2 py-1 rounded bg-[#1A0E1C] hover:bg-[#251528] border border-gold-antique/20 text-gold-light text-[10px] flex items-center gap-1.5 transition"
-              title="Reset countdown timer to 02:48"
-            >
-              <RotateCcw className="w-3 h-3 text-gold-antique" />
-              <span>Reset (02:48)</span>
-            </button>
-          </div>
-        </div>
       </main>
     </div>
   );

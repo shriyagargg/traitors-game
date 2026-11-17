@@ -7,12 +7,10 @@ import { DiscussionPlayer } from "@/types/discussion";
 
 interface DiscussionPlayerListProps {
   players: DiscussionPlayer[];
-  onTogglePlayerStatus?: (playerId: string) => void;
 }
 
 export function DiscussionPlayerList({
   players,
-  onTogglePlayerStatus,
 }: DiscussionPlayerListProps) {
   return (
     <div className="w-full h-full rounded-3xl border border-white/10 bg-[#120A14]/90 backdrop-blur-xl p-5 flex flex-col shadow-[0_4px_30px_rgba(20,9,28,0.5)]">
@@ -34,17 +32,11 @@ export function DiscussionPlayerList({
           return (
             <div
               key={player.id}
-              onClick={() => onTogglePlayerStatus?.(player.id)}
-              className={`w-full px-3 py-2.5 rounded-2xl flex items-center gap-3 transition-all duration-200 cursor-pointer ${
+              className={`w-full px-3 py-2.5 rounded-2xl flex items-center gap-3 transition-all duration-200 ${
                 isCurrentUser
                   ? "border border-gold-antique/70 bg-gradient-to-r from-[#1E1122] to-[#140A18] shadow-[0_0_15px_rgba(212,175,55,0.18)]"
                   : "border border-white/5 hover:border-gold-antique/30 bg-[#160B1A]/40 hover:bg-[#1A0E1C]"
               } ${!player.isAlive ? "opacity-45 grayscale" : ""}`}
-              title={
-                onTogglePlayerStatus
-                  ? `Click to toggle ${player.name}'s status (Alive/Eliminated demo)`
-                  : undefined
-              }
             >
               {/* Circular Avatar */}
               <div

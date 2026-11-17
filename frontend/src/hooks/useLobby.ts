@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useRef } from "react";
 import { LobbyService } from "@/services/lobbyService";
 import { LobbyRoomState } from "@/types/lobby";
 import { PlayerCapacity } from "@/services/rooms";
@@ -11,13 +11,22 @@ export function useLobby(
   initialCapacity: PlayerCapacity = 8,
   isPrivate = false
 ) {
-  const service = useMemo(() => {
-    return new LobbyService(roomCode, initialRoomName, initialCapacity, isPrivate);
-  }, [roomCode, initialRoomName, initialCapacity, isPrivate]);
+  const serviceRef = useRef<LobbyService | null>(null);
+  if (serviceRef.current === null) {
+    serviceRef.current = new LobbyService(
+      roomCode,
+      initialRoomName,
+      initialCapacity,
+      isPrivate
+    );
+  }
+  const service = serviceRef.current;
 
   const [state, setState] = useState<LobbyRoomState>(() => service.getState());
 
   useEffect(() => {
+    setState({ ...service.getState() });
+
     const unsubscribe = service.subscribe((newState) => {
       setState({ ...newState });
     });
@@ -25,8 +34,10 @@ export function useLobby(
     return () => {
       unsubscribe();
       service.disconnect();
+      serviceRef.current = null;
     };
-  }, [service]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const currentUser = state.players.find((p) => p.isCurrentUser);
   const isHost = !!currentUser?.isHost;
@@ -41,8 +52,6 @@ export function useLobby(
       service.updateSettings(settings),
     updateRoomName: (name: string) => service.updateRoomName(name),
     validateGameStart: () => service.validateGameStart(),
-    toggleDemoUserRole: () => service.toggleDemoUserRole(),
-    simulateFillSlots: () => service.simulateFillSlots(),
-    simulateReadyAll: () => service.simulateReadyAll(),
+    startGame: () => service.startGame(),
   };
 }

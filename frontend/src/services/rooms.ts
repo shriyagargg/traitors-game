@@ -1,8 +1,9 @@
 /**
  * Room Configuration & Management Service for AI TRAITORS
- * Manages player capacity, game timings, role distribution formulas,
- * and API adapter for Room creation/joining.
+ * Connects directly to FastAPI backend with real-time multiplayer synchronization.
  */
+
+import { getPlayerSession, setPlayerSession } from "./playerSession";
 
 export type PlayerCapacity = 6 | 7 | 8;
 
@@ -42,15 +43,10 @@ export interface RoomOperationResult {
   message: string;
   roomCode?: string;
   room?: RoomData;
+  playerId?: string;
   isMock?: boolean;
 }
 
-/**
- * Deterministic Role Distribution Formula as mandated by Master Architecture:
- * 6 Players: 2 Traitors, 1 Doctor, 1 Detective, 2 Faithful
- * 7 Players: 2 Traitors, 1 Doctor, 1 Detective, 3 Faithful
- * 8 Players: 2 Traitors, 1 Doctor, 1 Detective, 4 Faithful
- */
 export function getRoleDistribution(capacity: PlayerCapacity): RoleBreakdown {
   switch (capacity) {
     case 6:
@@ -64,13 +60,44 @@ export function getRoleDistribution(capacity: PlayerCapacity): RoleBreakdown {
   }
 }
 
+export function getApiBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  if (typeof window !== "undefined") {
+    const protocol = window.location.protocol;
+    const hostname = window.location.hostname;
+    // If running on localhost or same host
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "http://localhost:8000";
+    }
+    return ""; // Production deployments must configure the public API URL.
+  }
+  return "http://localhost:8000";
+}
+
+export function getWsBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_WS_URL) {
+    return process.env.NEXT_PUBLIC_WS_URL;
+  }
+  if (typeof window !== "undefined") {
+    const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const hostname = window.location.hostname;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "ws://localhost:8000";
+    }
+    return ""; // Production deployments must configure the public WebSocket URL.
+  }
+  return "ws://localhost:8000";
+}
+
 /**
  * Creates a new game room
  */
 export async function createRoom(config: RoomConfig): Promise<RoomOperationResult> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const apiUrl = getApiBaseUrl();
+  const session = getPlayerSession();
 
-  // Validate room name
   if (!config.roomName || config.roomName.trim().length < 3) {
     return {
       success: false,
@@ -79,109 +106,123 @@ export async function createRoom(config: RoomConfig): Promise<RoomOperationResul
   }
 
   try {
-    const res = await fetch(`${apiUrl}/api/v1/rooms`, {
+    const res = await fetch(`${apiUrl}/api/v1/game/create`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(config),
+      body: JSON.stringify({
+        host_name: session.name,
+        room_name: config.roomName.trim(),
+        capacity: config.playerCapacity,
+        is_private: config.isPrivate,
+        nightDuration: config.nightDuration,
+        discussionDuration: config.discussionDuration,
+        votingDuration: config.votingDuration,
+      }),
     });
 
     if (res.ok) {
       const data = await res.json();
+      const roomCode = data.room_code || data.roomCode;
+      const hostId = data.host_id || data.playerId;
+
+      // Update session with returned hostId
+      if (hostId) {
+        setPlayerSession(session.name, session.avatarUrl, hostId, data.session_token, roomCode);
+      }
+
       return {
         success: true,
         message: "Room established successfully.",
-        roomCode: data.room_code,
-        room: data.room,
+        roomCode: roomCode,
+        playerId: hostId,
+        room: {
+          id: roomCode,
+          roomCode: roomCode,
+          roomName: config.roomName,
+          hostName: session.name,
+          playerCapacity: config.playerCapacity,
+          currentPlayers: 1,
+          isPrivate: config.isPrivate,
+          nightDuration: config.nightDuration,
+          discussionDuration: config.discussionDuration,
+          votingDuration: config.votingDuration,
+          status: "waiting",
+          createdAt: new Date().toISOString(),
+        },
         isMock: false,
       };
+    } else {
+      const err = await res.json().catch(() => ({ detail: "Failed to create room." }));
+      return {
+        success: false,
+        message: err.detail || "Failed to create room on server.",
+      };
     }
-  } catch {
-    // Backend room endpoint not yet active (Phase 2)
+  } catch (err: any) {
+    return {
+      success: false,
+      message: "Could not connect to game backend. Please ensure the backend is running.",
+    };
   }
-
-  // Graceful simulation with realistic latency
-  await new Promise((resolve) => setTimeout(resolve, 850));
-
-  // Generate a stylish 6-character room code (e.g. TRTR-8821)
-  const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-  const generatedCode = `AIT-${randomSuffix}`;
-
-  return {
-    success: true,
-    message: `Room "${config.roomName}" configured (Preview simulation). Ready to invite council members.`,
-    roomCode: generatedCode,
-    room: {
-      id: `room_${randomSuffix}`,
-      roomCode: generatedCode,
-      roomName: config.roomName,
-      hostName: "Somya",
-      playerCapacity: config.playerCapacity,
-      currentPlayers: 1,
-      isPrivate: config.isPrivate,
-      nightDuration: config.nightDuration,
-      discussionDuration: config.discussionDuration,
-      votingDuration: config.votingDuration,
-      status: "waiting",
-      createdAt: new Date().toISOString(),
-    },
-    isMock: true,
-  };
 }
 
 /**
  * Joins an existing game room by code
  */
-export async function joinRoom(roomCode: string): Promise<RoomOperationResult> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export async function joinRoom(roomCode: string, playerName?: string): Promise<RoomOperationResult> {
+  const apiUrl = getApiBaseUrl();
   const cleanCode = roomCode.trim().toUpperCase();
 
   if (!cleanCode || cleanCode.length < 4) {
     return {
       success: false,
-      message: "Please enter a valid room code (at least 4 characters).",
+      message: "Please enter a valid room code (e.g. AIT-1234).",
     };
   }
 
+  let session = getPlayerSession(cleanCode);
+  if (playerName && playerName.trim()) {
+    session = setPlayerSession(
+      playerName.trim(), session.avatarUrl, session.id, session.token, cleanCode
+    );
+  }
+
   try {
-    const res = await fetch(`${apiUrl}/api/v1/rooms/${cleanCode}/join`, {
+    const res = await fetch(`${apiUrl}/api/v1/game/${cleanCode}/join`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        player_name: session.name,
+        avatar_url: session.avatarUrl,
+        player_id: session.id,
+        token: session.token,
+      }),
     });
 
     if (res.ok) {
       const data = await res.json();
+      const assignedId = data.player_id || data.playerId || session.id;
+      setPlayerSession(session.name, session.avatarUrl, assignedId, data.session_token, cleanCode);
+
       return {
         success: true,
         message: "Entered council chamber successfully.",
         roomCode: cleanCode,
+        playerId: assignedId,
         room: data.room,
         isMock: false,
       };
+    } else {
+      const err = await res.json().catch(() => ({ detail: "Cannot join room." }));
+      return {
+        success: false,
+        message: err.detail || "Unable to join room. Please check the code.",
+      };
     }
   } catch {
-    // Backend endpoint on standby
+    return {
+      success: false,
+      message: "Connection failed. Please check your network or backend server.",
+    };
   }
-
-  await new Promise((resolve) => setTimeout(resolve, 750));
-
-  return {
-    success: true,
-    message: `Connected to chamber [${cleanCode}] (Preview simulation). Welcome to the council.`,
-    roomCode: cleanCode,
-    room: {
-      id: `room_${cleanCode.toLowerCase()}`,
-      roomCode: cleanCode,
-      roomName: "Council Chamber",
-      hostName: "The Architect",
-      playerCapacity: 7,
-      currentPlayers: 4,
-      isPrivate: false,
-      nightDuration: 60,
-      discussionDuration: 180,
-      votingDuration: 90,
-      status: "waiting",
-      createdAt: new Date().toISOString(),
-    },
-    isMock: true,
-  };
 }

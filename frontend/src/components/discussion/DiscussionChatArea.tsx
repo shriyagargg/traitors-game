@@ -20,7 +20,6 @@ interface DiscussionChatAreaProps {
   announcement: ArchitectAnnouncement;
   messages: DiscussionMessage[];
   onSendMessage: (text: string) => void;
-  onProceedToVote?: () => void;
 }
 
 export function DiscussionChatArea({
@@ -30,7 +29,6 @@ export function DiscussionChatArea({
   announcement,
   messages,
   onSendMessage,
-  onProceedToVote,
 }: DiscussionChatAreaProps) {
   const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -78,16 +76,6 @@ export function DiscussionChatArea({
             </span>
           </div>
 
-          {onProceedToVote && (
-            <button
-              type="button"
-              onClick={onProceedToVote}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gold-antique/15 hover:bg-gold-antique/25 border border-gold-antique/40 text-gold-light text-xs font-semibold transition-all hover:scale-105 active:scale-95"
-            >
-              <span>Call Vote</span>
-              <Vote className="w-3.5 h-3.5" />
-            </button>
-          )}
         </div>
       </div>
 

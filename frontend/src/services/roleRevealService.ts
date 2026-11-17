@@ -1,4 +1,6 @@
 import { GameRole, RoleConfig, PlayerSecretIdentity } from "@/types/roleReveal";
+import { getApiBaseUrl } from "./rooms";
+import { getPlayerSession } from "./playerSession";
 
 export const ROLE_CONFIGS: Record<GameRole, RoleConfig> = {
   traitor: {
@@ -83,22 +85,31 @@ export async function fetchSecretIdentity(
   roomCode = "A7K4D9",
   requestedRole?: GameRole
 ): Promise<PlayerSecretIdentity> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const apiUrl = getApiBaseUrl();
+  const session = getPlayerSession(roomCode);
 
   try {
-    const res = await fetch(`${apiUrl}/api/v1/game/${roomCode}/my-role`, {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-    });
+    const res = await fetch(
+      `${apiUrl}/api/v1/game/${roomCode}/my-role?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}`,
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      }
+    );
 
     if (res.ok) {
       const data = await res.json();
+      const rawRole = (data.role || "faithful").toLowerCase() as GameRole;
+      const validRole = ["traitor", "doctor", "detective", "faithful"].includes(rawRole)
+        ? rawRole
+        : "faithful";
+
       return {
-        playerId: data.player_id || "p_somya",
-        playerName: data.player_name || "Somya",
+        playerId: data.player_id || session.id,
+        playerName: data.player_name || session.name,
         roomCode: roomCode.toUpperCase(),
         roundNumber: data.round_number || 1,
-        role: data.role as GameRole,
+        role: validRole,
         isMock: false,
       };
     }
@@ -106,12 +117,12 @@ export async function fetchSecretIdentity(
     // Backend game engine endpoint is in standby
   }
 
-  // Graceful simulation: default role is "traitor" as depicted in reference mockup
+  // Fallback demo simulation
   const finalRole: GameRole = requestedRole || "traitor";
 
   return {
-    playerId: "p_somya",
-    playerName: "Somya",
+    playerId: session.id,
+    playerName: session.name,
     roomCode: roomCode.toUpperCase(),
     roundNumber: 1,
     role: finalRole,

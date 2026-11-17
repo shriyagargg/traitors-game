@@ -38,4 +38,5 @@ export interface NightPhaseState {
   connectionStatus: "connected" | "mock_preview";
   isTimeUp?: boolean;
   allActionsResolved?: boolean;
+  investigationResult?: { targetName: string; isTraitor: boolean } | null;
 }

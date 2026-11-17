@@ -38,7 +38,7 @@ export interface VotingResultsState {
   phaseType: "Results";
   totalVotes: number;
   tallies: VoteTallyItem[];
-  banishedPlayer: BanishedPlayer;
+  banishedPlayer: BanishedPlayer | null;
   isRoleRevealed: boolean;
   gameOutcome: GameOutcomeStatus;
   traitorsRemaining: number;

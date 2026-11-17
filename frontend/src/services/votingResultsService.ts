@@ -3,91 +3,108 @@ import {
   VoteTallyItem,
   BanishedPlayer,
   GameOutcomeStatus,
-  PlayerRole,
 } from "@/types/votingResults";
-
-export const INITIAL_TALLIES: VoteTallyItem[] = [
-  {
-    targetId: "p_shubh",
-    targetName: "Shubh",
-    targetAvatarUrl: "/images/player_shubh.png",
-    votesCount: 4,
-    percentage: 67,
-    isBanished: true,
-    voters: [
-      { id: "p_somya", name: "Somya (You)", avatarUrl: "/images/player_somya.png" },
-      { id: "p_pari", name: "Pari", avatarUrl: "/images/player_pari.png" },
-      { id: "p_riya", name: "Riya", avatarUrl: "/images/player_riya.png" },
-      { id: "p_vivaan", name: "Vivaan", avatarUrl: "/images/player_vivaan.png" },
-    ],
-  },
-  {
-    targetId: "p_pari",
-    targetName: "Pari",
-    targetAvatarUrl: "/images/player_pari.png",
-    votesCount: 1,
-    percentage: 16.5,
-    isBanished: false,
-    voters: [
-      { id: "p_shubh", name: "Shubh", avatarUrl: "/images/player_shubh.png" },
-    ],
-  },
-  {
-    targetId: "p_vivaan",
-    targetName: "Vivaan",
-    targetAvatarUrl: "/images/player_vivaan.png",
-    votesCount: 1,
-    percentage: 16.5,
-    isBanished: false,
-    voters: [
-      { id: "p_ishita", name: "Ishita", avatarUrl: "/images/player_ishita.png" },
-    ],
-  },
-];
-
-export const INITIAL_BANISHED_PLAYER: BanishedPlayer = {
-  id: "p_shubh",
-  name: "Shubh",
-  avatarUrl: "/images/player_shubh.png",
-  votesReceived: 4,
-  totalVotesCast: 6,
-  role: "Traitor",
-  isTraitor: true,
-  confession:
-    "I walked among you in the shadows of this castle... and I can now confess: I am a TRAITOR.",
-};
+import { getApiBaseUrl, getWsBaseUrl } from "./rooms";
+import { getPlayerSession } from "./playerSession";
 
 export class VotingResultsService {
   private state: VotingResultsState;
   private listeners: Set<(state: VotingResultsState) => void> = new Set();
   private socket: WebSocket | null = null;
+  private disposed = false;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(roomCode = "A7K4D9", roundNumber = 2) {
+  constructor(roomCode = "A7K4D9", roundNumber = 1) {
     this.state = {
       roomCode: roomCode.toUpperCase(),
       roundNumber: roundNumber,
       phaseType: "Results",
-      totalVotes: 6,
-      tallies: INITIAL_TALLIES,
-      banishedPlayer: INITIAL_BANISHED_PLAYER,
+      totalVotes: 0,
+      tallies: [],
+      banishedPlayer: null,
       isRoleRevealed: false,
       gameOutcome: "CONTINUE_TO_NIGHT",
       traitorsRemaining: 1,
-      faithfulRemaining: 4,
+      faithfulRemaining: 3,
       connectionStatus: "mock_preview",
     };
 
-    this.initWebSocket(roomCode);
+    this.fetchInitialState();
+    this.initWebSocket();
   }
 
-  private initWebSocket(roomCode: string) {
+  private async fetchInitialState() {
     if (typeof window === "undefined") return;
+    const session = getPlayerSession(this.state.roomCode);
+    const apiUrl = getApiBaseUrl();
 
     try {
-      const wsUrl =
-        process.env.NEXT_PUBLIC_WS_URL ||
-        `ws://localhost:8000/api/v1/ws/game/${roomCode}/voting-results`;
+      const res = await fetch(
+        `${apiUrl}/api/v1/game/${this.state.roomCode}/state?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        this.syncState(data);
+      }
+    } catch {
+      // Offline fallback
+    }
+  }
 
+  private syncState(data: any) {
+    if (!data) return;
+
+    let banished: BanishedPlayer | null = null;
+    if (data.banished_player_id && data.players) {
+      const p = data.players.find((pl: any) => pl.id === data.banished_player_id);
+      if (p) {
+        const isTraitor = p.role === "Traitor";
+        banished = {
+          id: p.id,
+          name: p.name,
+          avatarUrl: p.avatar_url || p.avatarUrl || "/images/player_shubh.png",
+          votesReceived: (data.vote_tally || []).find((t: any) => t.target_id === p.id)?.votes_count || 0,
+          totalVotesCast: data.total_votes_cast || 0,
+          role: isTraitor ? "Traitor" : "Faithful",
+          isTraitor: isTraitor,
+          confession: isTraitor
+            ? `I walked among you in the shadows of this chamber. I confess: I am a TRAITOR.`
+            : `You have condemned an innocent soul. I was and remain a FAITHFUL.`,
+        };
+      }
+    }
+
+    let outcome: GameOutcomeStatus = "CONTINUE_TO_NIGHT";
+    if (data.outcome === "FAITHFUL_VICTORY") outcome = "FAITHFUL_VICTORY";
+    else if (data.outcome === "TRAITOR_VICTORY") outcome = "TRAITOR_VICTORY";
+
+    this.updateState({
+      roundNumber: data.round_number || this.state.roundNumber,
+      banishedPlayer: banished,
+      totalVotes: data.total_votes_cast || 0,
+      tallies: (data.vote_tally || []).map((t: any) => {
+        const target = data.players?.find((player: any) => player.id === t.target_id);
+        return {
+          targetId: t.target_id,
+          targetName: t.target_name,
+          targetAvatarUrl: target?.avatar_url || "/images/player_somya.png",
+          votesCount: t.votes_count,
+          percentage: t.percentage,
+          isBanished: t.target_id === data.banished_player_id,
+          voters: [], // Individual ballots remain private.
+        };
+      }),
+      gameOutcome: outcome,
+      connectionStatus: "connected",
+    });
+  }
+
+  private initWebSocket() {
+    if (typeof window === "undefined") return;
+    const session = getPlayerSession(this.state.roomCode);
+    const wsUrl = `${getWsBaseUrl()}/api/v1/ws/game/${this.state.roomCode}?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}`;
+
+    try {
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
@@ -98,8 +115,10 @@ export class VotingResultsService {
       ws.onmessage = (event) => {
         try {
           const packet = JSON.parse(event.data);
-          if (packet.type === "VOTING_RESULTS_UPDATE" && packet.payload) {
-            this.updateState({ ...packet.payload });
+          if (packet.type === "INITIAL_SYNC" && packet.payload) {
+            this.syncState(packet.payload);
+          } else if (packet.type === "PHASE_CHANGED" && packet.payload) {
+            this.syncState(packet.payload);
           }
         } catch {
           // ignore corrupted packets
@@ -114,6 +133,9 @@ export class VotingResultsService {
       ws.onclose = () => {
         this.socket = null;
         this.updateState({ connectionStatus: "mock_preview" });
+        if (!this.disposed) {
+          this.reconnectTimer = setTimeout(() => this.initWebSocket(), 1500);
+        }
       };
     } catch {
       this.updateState({ connectionStatus: "mock_preview" });
@@ -145,36 +167,12 @@ export class VotingResultsService {
     this.updateState({ isRoleRevealed: false });
   }
 
-  public setRoleDemo(role: PlayerRole) {
-    const isTraitor = role === "Traitor";
-    const confession = isTraitor
-      ? "I walked among you in the shadows of this castle... and I can now confess: I am a TRAITOR."
-      : "You have banished an innocent brother. I was, and always will be, a FAITHFUL.";
-
-    const traitorsRemaining = isTraitor ? 1 : 2;
-    const faithfulRemaining = isTraitor ? 4 : 3;
-
-    this.updateState({
-      banishedPlayer: {
-        ...this.state.banishedPlayer,
-        role: role,
-        isTraitor: isTraitor,
-        confession: confession,
-      },
-      traitorsRemaining,
-      faithfulRemaining,
-    });
-  }
-
-  public setOutcomeDemo(outcome: GameOutcomeStatus) {
-    this.updateState({ gameOutcome: outcome });
-  }
-
   public destroy() {
+    this.disposed = true;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.socket) {
       this.socket.close();
       this.socket = null;
     }
   }
 }
-

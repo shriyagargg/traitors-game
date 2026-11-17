@@ -10,9 +10,10 @@ import { LobbySettingsPanel } from "./LobbySettingsPanel";
 import { LobbyChatBar } from "./LobbyChatBar";
 import { StartGameAction } from "./StartGameAction";
 import { useLobby } from "@/hooks/useLobby";
+import { useGamePhaseGuard } from "@/hooks/useGamePhaseGuard";
 import { MOCK_PLAYER_PROFILE } from "@/services/dashboard";
 import { PlayerCapacity } from "@/services/rooms";
-import { ShieldCheck, UserCheck, Users, Radio, Sparkles } from "lucide-react";
+import { Radio, Sparkles } from "lucide-react";
 
 interface LobbyContainerProps {
   initialRoomCode?: string;
@@ -27,6 +28,7 @@ export function LobbyContainer({
   initialCapacity = 8,
   initialIsPrivate = false,
 }: LobbyContainerProps) {
+  useGamePhaseGuard(initialRoomCode, "LOBBY");
   const router = useRouter();
 
   const {
@@ -38,9 +40,7 @@ export function LobbyContainer({
     updateSettings,
     updateRoomName,
     validateGameStart,
-    toggleDemoUserRole,
-    simulateFillSlots,
-    simulateReadyAll,
+    startGame,
   } = useLobby(
     initialRoomCode,
     initialRoomName,
@@ -49,18 +49,25 @@ export function LobbyContainer({
   );
 
   const [gameStartedNotification, setGameStartedNotification] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleStartGame = () => {
-    setGameStartedNotification(true);
-    setTimeout(() => {
-      // In Phase 6 this navigates to the Role Reveal page
-      router.push("/game/reveal");
-    }, 2200);
-  };
+  // Synchronized navigation: whenever server status turns to "playing", ALL players enter the game together!
+  React.useEffect(() => {
+    if (state.status === "playing") {
+      setGameStartedNotification(true);
+      const timer = setTimeout(() => {
+        router.push(`/game/reveal?room=${state.roomCode}`);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [state.status, state.roomCode, router]);
 
-  const handleQuickFixDemo = () => {
-    simulateFillSlots();
-    simulateReadyAll();
+  const handleStartGame = async () => {
+    setErrorMessage(null);
+    const res = await startGame();
+    if (!res.success) {
+      setErrorMessage(res.message);
+    }
   };
 
   return (
@@ -113,7 +120,7 @@ export function LobbyContainer({
                 Council Chamber Slots ({state.players.length}/{state.settings.playerCapacity})
               </span>
               <span className="text-[11px] text-gold-antique/70">
-                Click any status badge to toggle Ready (Demo)
+                Only connected players appear in this chamber
               </span>
             </div>
             <PlayerSlotsRow
@@ -150,48 +157,20 @@ export function LobbyContainer({
               isHost={isHost}
               onValidate={validateGameStart}
               onStartGame={handleStartGame}
-              onQuickFixDemo={handleQuickFixDemo}
             />
           </div>
         </div>
 
-        {/* E. Evaluator & Demo Simulation Toolbar */}
+        {/* E. Live connection state */}
         <div className="w-full flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gold-antique/10 text-[11px] font-sans text-text-secondary/70">
           <div className="flex items-center gap-2">
             <Radio className="w-3.5 h-3.5 text-gold-antique animate-pulse" />
             <span className="text-gold-light/80">Connection Status:</span>
             <span className="bg-[#1A0E1C] px-2 py-0.5 rounded border border-gold-antique/25 font-mono text-[10px] text-text-main">
-              {state.connectionStatus === "connected"
-                ? "Live WebSocket"
-                : "Mock Evaluation Adapter"}
+              {state.connectionStatus === "connected" ? "Live WebSocket" : state.connectionStatus}
             </span>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-text-secondary/50">Demo Helpers:</span>
-            <button
-              onClick={toggleDemoUserRole}
-              className="px-2 py-1 rounded bg-[#1A0E1C] hover:bg-[#251528] border border-gold-antique/20 text-gold-light text-[10px] transition"
-              title="Toggle view between Host (Somya) and Guest (Shubh)"
-            >
-              Toggle Host / Guest View ({isHost ? "Currently Host" : "Currently Guest"})
-            </button>
-            <button
-              onClick={simulateFillSlots}
-              disabled={state.players.length >= state.settings.playerCapacity}
-              className="px-2 py-1 rounded bg-[#1A0E1C] hover:bg-[#251528] border border-gold-antique/20 text-gold-light text-[10px] transition disabled:opacity-40"
-              title="Fill remaining slots to capacity"
-            >
-              Fill Slots (8/8)
-            </button>
-            <button
-              onClick={simulateReadyAll}
-              className="px-2 py-1 rounded bg-[#1A0E1C] hover:bg-[#251528] border border-gold-antique/20 text-gold-light text-[10px] transition"
-              title="Make all players ready"
-            >
-              Ready All Players
-            </button>
-          </div>
         </div>
       </main>
 

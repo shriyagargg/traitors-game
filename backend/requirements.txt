@@ -6,10 +6,11 @@ pydantic-settings>=2.6.0
 python-multipart>=0.0.12
 
 # Database & ORM
-sqlalchemy>=2.0.36
+sqlalchemy[asyncio]>=2.0.36
 alembic>=1.14.0
 psycopg[binary]>=3.2.0
 aiosqlite>=0.20.0
+greenlet>=3.1.0
 
 # Authentication & Security
 python-jose[cryptography]>=3.3.0

@@ -5,7 +5,7 @@ import { Sparkles } from "lucide-react";
 import { BanishedPlayer } from "@/types/votingResults";
 
 interface VotingResultsAnnouncementProps {
-  banishedPlayer: BanishedPlayer;
+  banishedPlayer: BanishedPlayer | null;
   isRoleRevealed: boolean;
 }
 
@@ -13,9 +13,11 @@ export function VotingResultsAnnouncement({
   banishedPlayer,
   isRoleRevealed,
 }: VotingResultsAnnouncementProps) {
-  let message = `The ballots have been counted. By majority decree, ${banishedPlayer.name} has received the highest tally and is banished from the castle. The Circle of Truth now demands their final confession.`;
+  let message = banishedPlayer
+    ? `The ballots have been counted. By majority decree, ${banishedPlayer.name} has received the highest tally and is banished from the castle. The Circle of Truth now demands their final confession.`
+    : "The council is deadlocked. No player has been banished this round.";
 
-  if (isRoleRevealed) {
+  if (banishedPlayer && isRoleRevealed) {
     if (banishedPlayer.isTraitor) {
       message = `A Traitor has been uncovered! The Council rejoices as ${banishedPlayer.name} confesses their dark allegiance. The shadows tremble, but danger still lurks.`;
     } else {

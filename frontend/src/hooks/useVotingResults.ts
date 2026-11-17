@@ -32,7 +32,5 @@ export function useVotingResults(roomCode = "A7K4D9", roundNumber = 2) {
     state,
     revealAllegiance: () => service.revealAllegiance(),
     hideAllegiance: () => service.hideAllegiance(),
-    setRoleDemo: (role: PlayerRole) => service.setRoleDemo(role),
-    setOutcomeDemo: (outcome: GameOutcomeStatus) => service.setOutcomeDemo(outcome),
   };
 }

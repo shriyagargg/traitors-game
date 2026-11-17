@@ -19,6 +19,7 @@ interface RoleActionPanelProps {
   selectedTargetId: string | null;
   isSubmitted: boolean;
   submittedTargetName: string | null;
+  investigationResult?: { targetName: string; isTraitor: boolean } | null;
   onSelectTarget: (id: string) => void;
   onSubmitAction: () => Promise<{ success: boolean; message: string }>;
 }
@@ -29,6 +30,7 @@ export function RoleActionPanel({
   selectedTargetId,
   isSubmitted,
   submittedTargetName,
+  investigationResult,
   onSelectTarget,
   onSubmitAction,
 }: RoleActionPanelProps) {
@@ -187,6 +189,11 @@ export function RoleActionPanel({
               <span>{config.buttonText}</span>
             )}
           </button>
+        </div>
+      )}
+      {investigationResult && (
+        <div className="mt-4 rounded-xl border border-gold-antique/30 bg-[#120A14] px-4 py-3 text-sm text-text-main" role="status">
+          Investigation: <span className="font-semibold">{investigationResult.targetName}</span> is {investigationResult.isTraitor ? "a Traitor" : "not a Traitor"}.
         </div>
       )}
     </div>

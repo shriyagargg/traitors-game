@@ -2,8 +2,9 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Users, Key, ArrowRight, Loader2 } from "lucide-react";
+import { Users, Key, ArrowRight, Loader2, User } from "lucide-react";
 import { joinRoom, RoomOperationResult } from "@/services/rooms";
+import { getPlayerSession } from "@/services/playerSession";
 
 interface JoinGamePanelProps {
   onSwitchToCreate: () => void;
@@ -13,6 +14,12 @@ interface JoinGamePanelProps {
 export function JoinGamePanel({ onSwitchToCreate, onRoomJoined }: JoinGamePanelProps) {
   const router = useRouter();
   const [roomCode, setRoomCode] = useState("");
+  const [playerName, setPlayerName] = useState(() => {
+    if (typeof window !== "undefined") {
+      return getPlayerSession().name;
+    }
+    return "Guest";
+  });
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [result, setResult] = useState<RoomOperationResult | null>(null);
@@ -35,7 +42,7 @@ export function JoinGamePanel({ onSwitchToCreate, onRoomJoined }: JoinGamePanelP
 
     setLoading(true);
     try {
-      const res = await joinRoom(roomCode);
+      const res = await joinRoom(roomCode, playerName);
       setResult(res);
       if (res.success) {
         if (onRoomJoined) {
@@ -85,12 +92,30 @@ export function JoinGamePanel({ onSwitchToCreate, onRoomJoined }: JoinGamePanelP
       )}
 
       {/* Form */}
-      <form onSubmit={handleJoinSubmit} className="space-y-5">
+      <form onSubmit={handleJoinSubmit} className="space-y-4">
         <div>
-          <label className="block text-xs font-sans text-text-secondary mb-2 text-center uppercase tracking-wider">
+          <label className="block text-xs font-sans text-text-secondary mb-1.5 text-left uppercase tracking-wider">
+            Your Name
+          </label>
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#170C1B]/90 border border-gold-antique/25 focus-within:border-gold-antique transition-all">
+            <User className="w-4 h-4 text-gold-antique/70 shrink-0" />
+            <input
+              type="text"
+              placeholder="YOUR NAME"
+              value={playerName}
+              onChange={(e) => setPlayerName(e.target.value)}
+              maxLength={24}
+              required
+              className="w-full bg-transparent text-sm font-sans text-text-main focus:outline-none"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-sans text-text-secondary mb-1.5 text-left uppercase tracking-wider">
             Enter Room Code
           </label>
-          <div className="flex items-center gap-3 px-5 py-4 rounded-2xl bg-[#170C1B]/90 border border-gold-antique/35 focus-within:border-gold-antique focus-within:shadow-[0_0_20px_rgba(212,175,55,0.2)] transition-all">
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#170C1B]/90 border border-gold-antique/35 focus-within:border-gold-antique focus-within:shadow-[0_0_20px_rgba(212,175,55,0.2)] transition-all">
             <Users className="w-5 h-5 text-gold-antique/70 shrink-0" />
             <input
               type="text"

@@ -8,6 +8,7 @@ import { VoteTallyBreakdown } from "./VoteTallyBreakdown";
 import { BanishmentRevealCard } from "./BanishmentRevealCard";
 import { VotingResultsActionFooter } from "./VotingResultsActionFooter";
 import { useVotingResults } from "@/hooks/useVotingResults";
+import { useGamePhaseGuard } from "@/hooks/useGamePhaseGuard";
 import { MOCK_PLAYER_PROFILE } from "@/services/dashboard";
 import { Radio, RotateCcw, Skull, Shield, Moon, Trophy } from "lucide-react";
 
@@ -20,12 +21,11 @@ export function VotingResultsContainer({
   roomCode = "A7K4D9",
   roundNumber = 2,
 }: VotingResultsContainerProps) {
+  useGamePhaseGuard(roomCode, "VOTING_RESULTS");
   const {
     state,
     revealAllegiance,
     hideAllegiance,
-    setRoleDemo,
-    setOutcomeDemo,
   } = useVotingResults(roomCode, roundNumber);
 
   return (
@@ -99,93 +99,7 @@ export function VotingResultsContainer({
           roomCode={state.roomCode}
         />
 
-        {/* 4. Evaluator & Demonstration Toolbar */}
-        <div className="w-full flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gold-antique/10 text-[11px] font-sans text-text-secondary/70">
-          <div className="flex items-center gap-2">
-            <Radio className="w-3.5 h-3.5 text-gold-antique animate-pulse" />
-            <span className="font-mono text-gold-light uppercase tracking-wider">
-              Mode: {state.connectionStatus}
-            </span>
-            <span className="text-white/20">|</span>
-            <span>Page 11: Council Banishment &amp; Voting Results</span>
-          </div>
 
-          {/* Demo Controls for Testing Allegiance & Outcomes */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] uppercase font-mono text-text-secondary/50">
-              Demo Test:
-            </span>
-
-            {/* Test Traitor vs Faithful */}
-            <button
-              type="button"
-              onClick={() => setRoleDemo("Traitor")}
-              className={`px-2.5 py-1 rounded-lg border text-[10px] font-mono flex items-center gap-1 transition-all ${
-                state.banishedPlayer.isTraitor
-                  ? "bg-red-950/60 border-red-500/50 text-red-300"
-                  : "bg-black/40 border-white/10 hover:border-white/20 text-text-secondary"
-              }`}
-            >
-              <Skull className="w-3 h-3" />
-              <span>Traitor Role</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setRoleDemo("Faithful")}
-              className={`px-2.5 py-1 rounded-lg border text-[10px] font-mono flex items-center gap-1 transition-all ${
-                !state.banishedPlayer.isTraitor
-                  ? "bg-emerald-950/60 border-emerald-500/50 text-emerald-300"
-                  : "bg-black/40 border-white/10 hover:border-white/20 text-text-secondary"
-              }`}
-            >
-              <Shield className="w-3 h-3" />
-              <span>Faithful Role</span>
-            </button>
-
-            {/* Test Outcome: Continue vs Victory */}
-            <button
-              type="button"
-              onClick={() =>
-                setOutcomeDemo(
-                  state.gameOutcome === "CONTINUE_TO_NIGHT"
-                    ? "FAITHFUL_VICTORY"
-                    : "CONTINUE_TO_NIGHT"
-                )
-              }
-              className={`px-2.5 py-1 rounded-lg border text-[10px] font-mono flex items-center gap-1 transition-all ${
-                state.gameOutcome !== "CONTINUE_TO_NIGHT"
-                  ? "bg-gold-antique/20 border-gold-antique/60 text-gold-light"
-                  : "bg-black/40 border-white/10 hover:border-white/20 text-text-secondary"
-              }`}
-            >
-              {state.gameOutcome === "CONTINUE_TO_NIGHT" ? (
-                <>
-                  <Moon className="w-3 h-3" />
-                  <span>Target: Night</span>
-                </>
-              ) : (
-                <>
-                  <Trophy className="w-3 h-3 text-gold-light" />
-                  <span>Target: Victory</span>
-                </>
-              )}
-            </button>
-
-            {/* Reset Reveal */}
-            <button
-              type="button"
-              onClick={() => {
-                if (state.isRoleRevealed) hideAllegiance();
-                else revealAllegiance();
-              }}
-              className="px-2.5 py-1 rounded-lg bg-black/40 border border-white/10 hover:border-white/20 text-[10px] font-mono text-text-secondary hover:text-gold-light flex items-center gap-1 transition-all"
-            >
-              <RotateCcw className="w-3 h-3" />
-              <span>{state.isRoleRevealed ? "Reset Reveal" : "Force Reveal"}</span>
-            </button>
-          </div>
-        </div>
       </main>
     </div>
   );

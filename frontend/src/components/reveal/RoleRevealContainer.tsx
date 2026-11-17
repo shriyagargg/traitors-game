@@ -13,6 +13,9 @@ import {
   ROLE_CONFIGS,
   fetchSecretIdentity,
 } from "@/services/roleRevealService";
+import { useGamePhaseGuard } from "@/hooks/useGamePhaseGuard";
+import { getWsBaseUrl } from "@/services/rooms";
+import { getPlayerSession } from "@/services/playerSession";
 import { ShieldAlert, Sparkles, Radio } from "lucide-react";
 
 interface RoleRevealContainerProps {
@@ -24,6 +27,7 @@ export function RoleRevealContainer({
   initialRoomCode = "A7K4D9",
   initialRole = "traitor",
 }: RoleRevealContainerProps) {
+  useGamePhaseGuard(initialRoomCode, "ROLE_REVEAL");
   const router = useRouter();
 
   const [identity, setIdentity] = useState<PlayerSecretIdentity>({
@@ -45,10 +49,32 @@ export function RoleRevealContainer({
         setLoading(false);
       }
     });
+
+    // Listen to WebSocket for server timer auto-advance
+    let ws: WebSocket | null = null;
+    try {
+      const session = getPlayerSession(initialRoomCode);
+      const wsUrl = `${getWsBaseUrl()}/api/v1/ws/game/${initialRoomCode}?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}`;
+      ws = new WebSocket(wsUrl);
+      ws.onmessage = (event) => {
+        try {
+          const packet = JSON.parse(event.data);
+          if (packet.type === "PHASE_CHANGED" && packet.payload?.phase === "NIGHT") {
+            router.push(`/game/night?room=${initialRoomCode}`);
+          }
+        } catch {
+          // ignore
+        }
+      };
+    } catch {
+      // ignore
+    }
+
     return () => {
       isMounted = false;
+      if (ws) ws.close();
     };
-  }, [initialRoomCode, initialRole]);
+  }, [initialRoomCode, initialRole, router]);
 
   // Handle switching role for evaluator/demo testing
   const handleSwitchRole = (newRole: GameRole) => {
@@ -59,8 +85,7 @@ export function RoleRevealContainer({
   };
 
   const handleContinue = () => {
-    // In Phase 7 this navigates to the Night Phase gameplay room
-    router.push(`/game?room=${identity.roomCode}`);
+    router.push(`/game/night?room=${identity.roomCode}&role=${identity.role}&round=${identity.roundNumber}`);
   };
 
   const currentConfig = ROLE_CONFIGS[identity.role] || ROLE_CONFIGS.traitor;

@@ -6,7 +6,7 @@ import { BanishedPlayer } from "@/types/votingResults";
 import { Sparkles, Shield, Skull, Eye, EyeOff } from "lucide-react";
 
 interface BanishmentRevealCardProps {
-  banishedPlayer: BanishedPlayer;
+  banishedPlayer: BanishedPlayer | null;
   isRoleRevealed: boolean;
   onReveal: () => void;
   onHide: () => void;
@@ -19,6 +19,14 @@ export function BanishmentRevealCard({
   onHide,
 }: BanishmentRevealCardProps) {
   const [isAnimating, setIsAnimating] = useState(false);
+
+  if (!banishedPlayer) {
+    return <div className="w-full rounded-3xl border border-white/10 bg-[#120A14]/90 p-8 flex flex-col items-center justify-center text-center min-h-[440px]">
+      <Sparkles className="w-10 h-10 text-gold-antique mb-4" />
+      <h2 className="font-cinzel text-xl font-bold text-gold-light">No One Banished</h2>
+      <p className="mt-2 text-sm text-text-secondary">The vote was tied. The council will reconvene next round.</p>
+    </div>;
+  }
 
   const handleRevealClick = () => {
     setIsAnimating(true);

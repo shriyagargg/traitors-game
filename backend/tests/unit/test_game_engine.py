@@ -146,29 +146,39 @@ async def test_rest_api_game_flow():
         assert res.status_code == 200
         room_data = res.json()
         code = room_data["room_code"]
+        host_id = room_data["host_id"]
+        host_token = room_data["session_token"]
 
         # 2. Join 3 more players
+        joined = []
         for name in ["Shubh", "Pari", "Arnav"]:
             join_res = await client.post(
                 f"/api/v1/game/{code}/join", json={"player_name": name}
             )
             assert join_res.status_code == 200
+            joined.append(join_res.json())
+            await client.post(f"/api/v1/game/{code}/ready", json={
+                "player_id": join_res.json()["player_id"],
+                "token": join_res.json()["session_token"],
+            })
 
         # 3. Start Game
-        start_res = await client.post(f"/api/v1/game/{code}/start")
+        start_res = await client.post(f"/api/v1/game/{code}/start", params={
+            "host_id": host_id, "token": host_token,
+        })
         assert start_res.status_code == 200
         assert start_res.json()["status"] == "started"
 
         # 4. Check State with Zero Leakage
         state_res = await client.get(
-            f"/api/v1/game/{code}/state", params={"player_id": "p_somya"}
+            f"/api/v1/game/{code}/state", params={"player_id": host_id, "token": host_token}
         )
         assert state_res.status_code == 200
         st = state_res.json()
         assert st["phase"] == "ROLE_REVEAL"
         # Host sees their role, not others
-        p_somya = next(p for p in st["players"] if p["id"] == "p_somya")
-        p_shubh = next(p for p in st["players"] if p["id"] == "p_shubh")
-        assert p_somya["role"] != "Unknown"
-        assert p_shubh["role"] == "Unknown"
+        p_host = next(p for p in st["players"] if p["id"] == host_id)
+        p_guest = next(p for p in st["players"] if p["id"] == joined[0]["player_id"])
+        assert p_host["role"] != "Unknown"
+        assert p_guest["role"] == "Unknown"
 

@@ -3,97 +3,71 @@ import {
   VotingTarget,
   VotingPhaseState,
 } from "@/types/votingPhase";
-
-export const INITIAL_VOTING_PLAYERS: VotingPlayer[] = [
-  {
-    id: "p_somya",
-    name: "Somya (You)",
-    avatarUrl: "/images/player_somya.png",
-    isAlive: true,
-    isHost: true,
-    isCurrentUser: true,
-  },
-  {
-    id: "p_shubh",
-    name: "Shubh",
-    avatarUrl: "/images/player_shubh.png",
-    isAlive: true,
-    isHost: false,
-    isCurrentUser: false,
-  },
-  {
-    id: "p_pari",
-    name: "Pari",
-    avatarUrl: "/images/player_pari.png",
-    isAlive: true,
-    isHost: false,
-    isCurrentUser: false,
-  },
-  {
-    id: "p_arnav",
-    name: "Arnav",
-    avatarUrl: "/images/player_arnav.png",
-    isAlive: false, // In reference mockup Arnav is Eliminated!
-    isHost: false,
-    isCurrentUser: false,
-  },
-  {
-    id: "p_riya",
-    name: "Riya",
-    avatarUrl: "/images/player_riya.png",
-    isAlive: true,
-    isHost: false,
-    isCurrentUser: false,
-  },
-  {
-    id: "p_vivaan",
-    name: "Vivaan",
-    avatarUrl: "/images/player_vivaan.png",
-    isAlive: true,
-    isHost: false,
-    isCurrentUser: false,
-  },
-  {
-    id: "p_ishita",
-    name: "Ishita",
-    avatarUrl: "/images/player_ishita.png",
-    isAlive: true,
-    isHost: false,
-    isCurrentUser: false,
-  },
-];
+import { getApiBaseUrl, getWsBaseUrl } from "./rooms";
+import { getPlayerSession } from "./playerSession";
 
 export class VotingService {
   private state: VotingPhaseState;
   private listeners: Set<(state: VotingPhaseState) => void> = new Set();
   private timerInterval: NodeJS.Timeout | null = null;
   private socket: WebSocket | null = null;
+  private disposed = false;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private serverPhaseEndsAt: number = 0;
+  private serverPlayers: any[] = [];
 
-  constructor(roomCode = "A7K4D9", roundNumber = 2) {
+  constructor(roomCode = "A7K4D9", roundNumber = 1) {
+    const session = getPlayerSession(roomCode);
+
     this.state = {
       roomCode: roomCode.toUpperCase(),
       roundNumber: roundNumber,
       phaseType: "Day",
-      timerSeconds: 90, // 01:30 as shown in mockup
-      currentUserId: "p_somya",
-      selectedTargetId: null, // Initially unselected per mockup
+      timerSeconds: 60,
+      currentUserId: session.id,
+      selectedTargetId: null,
       isSubmitted: false,
       submittedTargetName: null,
       connectionStatus: "mock_preview",
     };
 
+    this.fetchInitialState();
+    this.initWebSocket();
     this.startCountdown();
-    this.initWebSocket(roomCode);
   }
 
-  private initWebSocket(roomCode: string) {
+  private async fetchInitialState() {
     if (typeof window === "undefined") return;
+    const session = getPlayerSession(this.state.roomCode);
+    const apiUrl = getApiBaseUrl();
 
     try {
-      const wsUrl =
-        process.env.NEXT_PUBLIC_WS_URL ||
-        `ws://localhost:8000/api/v1/ws/game/${roomCode}/voting`;
+      const res = await fetch(
+        `${apiUrl}/api/v1/game/${this.state.roomCode}/state?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        this.serverPlayers = data.players || [];
+        if (data.phase_ends_at) {
+          this.serverPhaseEndsAt = data.phase_ends_at;
+          const remaining = Math.max(0, Math.floor(data.phase_ends_at - Date.now() / 1000));
+          this.updateState({
+            timerSeconds: remaining,
+            roundNumber: data.round_number || this.state.roundNumber,
+          });
+        }
+      }
+    } catch {
+      // Backend standby
+    }
+  }
 
+  private initWebSocket() {
+    if (typeof window === "undefined") return;
+    const session = getPlayerSession(this.state.roomCode);
+    const wsUrl = `${getWsBaseUrl()}/api/v1/ws/game/${this.state.roomCode}?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}`;
+
+    try {
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
@@ -104,11 +78,31 @@ export class VotingService {
       ws.onmessage = (event) => {
         try {
           const packet = JSON.parse(event.data);
-          if (
-            packet.type === "VOTING_TIMER_SYNC" &&
-            typeof packet.payload?.seconds === "number"
-          ) {
-            this.updateState({ timerSeconds: packet.payload.seconds });
+          if (packet.type === "PHASE_CHANGED") {
+            const nextPhase = packet.payload?.phase;
+            if (nextPhase === "VOTING_RESULTS" || nextPhase === "RESULTS") {
+              this.updateState({ allVotesRecorded: true, timerSeconds: 0 });
+            } else if (packet.payload) {
+              this.serverPlayers = packet.payload.players || [];
+              if (packet.payload.phase_ends_at) {
+                this.serverPhaseEndsAt = packet.payload.phase_ends_at;
+                const remaining = Math.max(
+                  0,
+                  Math.floor(packet.payload.phase_ends_at - Date.now() / 1000)
+                );
+                this.updateState({ timerSeconds: remaining });
+              }
+            }
+          } else if (packet.type === "INITIAL_SYNC" && packet.payload) {
+            this.serverPlayers = packet.payload.players || [];
+            if (packet.payload.phase_ends_at) {
+              this.serverPhaseEndsAt = packet.payload.phase_ends_at;
+              const remaining = Math.max(
+                0,
+                Math.floor(packet.payload.phase_ends_at - Date.now() / 1000)
+              );
+              this.updateState({ timerSeconds: remaining });
+            }
           }
         } catch {
           // ignore corrupted packets
@@ -123,6 +117,9 @@ export class VotingService {
       ws.onclose = () => {
         this.socket = null;
         this.updateState({ connectionStatus: "mock_preview" });
+        if (!this.disposed) {
+          this.reconnectTimer = setTimeout(() => this.initWebSocket(), 1500);
+        }
       };
     } catch {
       this.updateState({ connectionStatus: "mock_preview" });
@@ -133,22 +130,14 @@ export class VotingService {
     if (this.timerInterval) clearInterval(this.timerInterval);
 
     this.timerInterval = setInterval(() => {
-      if (this.state.timerSeconds > 0) {
-        const nextSec = this.state.timerSeconds - 1;
-        this.updateState({
-          timerSeconds: nextSec,
-          isTimeUp: nextSec === 0,
-        });
-        if (nextSec === 0 && !this.state.isSubmitted) {
-          const eligible = this.getEligibleTargets();
-          if (eligible.length > 0) {
-            this.selectTarget(eligible[0].id);
-            this.submitVote();
-          }
-        }
-      } else {
-        this.updateState({ isTimeUp: true });
-      }
+      if (!this.serverPhaseEndsAt) return;
+      const nextSec = Math.max(0, Math.floor(this.serverPhaseEndsAt - Date.now() / 1000));
+
+      this.updateState({
+        timerSeconds: nextSec,
+        isTimeUp: nextSec === 0,
+      });
+
     }, 1000);
   }
 
@@ -182,16 +171,20 @@ export class VotingService {
     this.listeners.forEach((cb) => cb(this.state));
   }
 
-  // Get eligible voting targets (living players excluding self and eliminated)
+  // Get eligible voting targets (living players excluding self)
   public getEligibleTargets(): VotingTarget[] {
-    return INITIAL_VOTING_PLAYERS.filter(
-      (p) => p.isAlive && p.id !== this.state.currentUserId
-    ).map((p) => ({
-      id: p.id,
-      name: p.name.replace(" (You)", ""),
-      avatarUrl: p.avatarUrl,
-      isSelectable: true,
-    }));
+    if (this.serverPlayers.length > 0) {
+      return this.serverPlayers
+        .filter((p) => p.id !== this.state.currentUserId && (p.is_alive ?? (p.status === "ALIVE")))
+        .map((p) => ({
+          id: p.id,
+          name: p.name.replace(" (You)", ""),
+          avatarUrl: p.avatar_url || p.avatarUrl || "/images/player_shubh.png",
+          isSelectable: true,
+        }));
+    }
+
+    return [];
   }
 
   public selectTarget(targetId: string) {
@@ -208,31 +201,32 @@ export class VotingService {
       (t) => t.id === this.state.selectedTargetId
     );
     const targetName = target ? target.name : null;
+    const session = getPlayerSession(this.state.roomCode);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      await fetch(`${apiUrl}/api/v1/game/${this.state.roomCode}/vote`, {
+      const apiUrl = getApiBaseUrl();
+      const response = await fetch(`${apiUrl}/api/v1/game/${this.state.roomCode}/vote`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           playerId: this.state.currentUserId,
           roundNumber: this.state.roundNumber,
           targetId: this.state.selectedTargetId,
+          token: session.token,
         }),
       });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        return { success: false, message: result.message || "Vote was rejected." };
+      }
     } catch {
-      // Backend vote endpoint on standby
+      return { success: false, message: "Game server is unavailable." };
     }
 
     this.updateState({
       isSubmitted: true,
       submittedTargetName: targetName,
     });
-
-    // Simulate remaining council members casting ballots
-    setTimeout(() => {
-      this.updateState({ allVotesRecorded: true });
-    }, 1200);
 
     return {
       success: true,
@@ -249,10 +243,12 @@ export class VotingService {
   }
 
   public resetTimer() {
-    this.updateState({ timerSeconds: 90 });
+    this.updateState({ timerSeconds: 60 });
   }
 
   public destroy() {
+    this.disposed = true;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.timerInterval) {
       clearInterval(this.timerInterval);
       this.timerInterval = null;

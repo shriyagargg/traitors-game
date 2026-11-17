@@ -15,11 +15,11 @@ class Role(str, Enum):
 class GamePhase(str, Enum):
     LOBBY = "LOBBY"
     ROLE_REVEAL = "ROLE_REVEAL"
+    NIGHT = "NIGHT"
+    MORNING = "MORNING"
     DISCUSSION = "DISCUSSION"
     VOTING = "VOTING"
     VOTING_RESULTS = "VOTING_RESULTS"
-    NIGHT = "NIGHT"
-    MORNING = "MORNING"
     GAME_OVER = "GAME_OVER"
 
 
@@ -45,6 +45,8 @@ class Player(BaseModel):
     is_host: bool = False
     is_ai: bool = False
     is_ready: bool = True
+    is_connected: bool = True
+    slot_index: int = 0
 
 
 class Vote(BaseModel):
@@ -70,9 +72,13 @@ class ChatMessage(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
     sender_id: str
     sender_name: str
+    avatar_url: str = "/images/player_somya.png"
     content: str
     timestamp: float = Field(default_factory=time.time)
     is_architect: bool = False
+    is_system: bool = False
+    phase: str = "DISCUSSION"
+    round_number: int = 1
 
 
 class VoteTally(BaseModel):
@@ -85,13 +91,34 @@ class VoteTally(BaseModel):
 
 class GameState(BaseModel):
     room_code: str
+    room_name: str = "Council Chamber"
+    host_id: str = ""
+    status: str = "LOBBY"  # LOBBY, PLAYING, FINISHED
     phase: GamePhase = GamePhase.LOBBY
     round_number: int = 1
+    capacity: int = 8
+    is_private: bool = False
+
+    # Durations in seconds
+    role_reveal_duration: int = 20
+    night_duration: int = 30
+    morning_duration: int = 20
+    discussion_duration: int = 120
+    voting_duration: int = 60
+    voting_results_duration: int = 25
+
+    # Server-Authoritative Timestamps (Epoch seconds)
+    phase_started_at: float = 0.0
+    phase_ends_at: float = 0.0
+    timer_seconds: int = 0
+
     players: Dict[str, Player] = {}
     votes: List[Vote] = []
+    vote_tally: List[VoteTally] = []
     night_actions: List[NightAction] = []
     chat_history: List[ChatMessage] = []
     outcome: GameOutcome = GameOutcome.ONGOING
-    timer_seconds: int = 90
+
     banished_player_id: Optional[str] = None
     murdered_player_id: Optional[str] = None
+    architect_announcement: Optional[str] = None

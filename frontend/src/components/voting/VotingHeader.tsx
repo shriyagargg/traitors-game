@@ -6,13 +6,11 @@ import { Clock, Vote, Scale } from "lucide-react";
 interface VotingHeaderProps {
   roundNumber: number;
   formattedTimer: string;
-  onProceedToResults?: () => void;
 }
 
 export function VotingHeader({
   roundNumber,
   formattedTimer,
-  onProceedToResults,
 }: VotingHeaderProps) {
   return (
     <div className="w-full flex items-center justify-between pb-3">
@@ -33,16 +31,6 @@ export function VotingHeader({
 
       {/* 2. Right: Timer Card & Quick Proceed */}
       <div className="flex items-center gap-3">
-        {onProceedToResults && (
-          <button
-            type="button"
-            onClick={onProceedToResults}
-            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gold-antique/15 hover:bg-gold-antique/25 border border-gold-antique/40 text-gold-light text-xs font-semibold transition-all hover:scale-105 active:scale-95"
-          >
-            <span>Tally Results</span>
-            <Scale className="w-3.5 h-3.5 text-gold-antique" />
-          </button>
-        )}
 
         <div className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-[#1A0E1C]/90 border border-gold-antique/40 shadow-[0_0_15px_rgba(212,175,55,0.15)]">
           <Clock className="w-6 h-6 text-gold-antique animate-pulse shrink-0" />

@@ -1,20 +1,18 @@
 "use client";
 
 import React, { useState } from "react";
-import { Play, Loader2, AlertCircle, CheckCircle2, Wand2 } from "lucide-react";
+import { Play, Loader2, AlertCircle } from "lucide-react";
 
 interface StartGameActionProps {
   isHost: boolean;
   onValidate: () => { canStart: boolean; reasons: string[] };
   onStartGame: () => void;
-  onQuickFixDemo?: () => void;
 }
 
 export function StartGameAction({
   isHost,
   onValidate,
   onStartGame,
-  onQuickFixDemo,
 }: StartGameActionProps) {
   const [isStarting, setIsStarting] = useState(false);
   const [validationModal, setValidationModal] = useState<{
@@ -57,19 +55,6 @@ export function StartGameAction({
               </li>
             ))}
           </ul>
-
-          {onQuickFixDemo && (
-            <button
-              onClick={() => {
-                onQuickFixDemo();
-                setValidationModal({ show: false, reasons: [] });
-              }}
-              className="mt-3 w-full py-1.5 px-3 rounded-lg bg-gold-antique/20 border border-gold-antique/40 hover:bg-gold-antique/30 text-gold-light text-xs font-semibold flex items-center justify-center gap-1.5 transition"
-            >
-              <Wand2 className="w-3.5 h-3.5" />
-              <span>Auto-Ready & Fill (Demo)</span>
-            </button>
-          )}
 
           <button
             onClick={() => setValidationModal({ show: false, reasons: [] })}

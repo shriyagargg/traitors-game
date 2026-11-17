@@ -32,6 +32,5 @@ export function useMorningAnnouncement(roomCode = "A7K4D9", roundNumber = 2) {
 
   return {
     state,
-    toggleEliminationScenario: () => service.toggleEliminationScenario(),
   };
 }

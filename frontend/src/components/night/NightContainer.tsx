@@ -8,9 +8,9 @@ import { NightHeader } from "./NightHeader";
 import { NightAnnouncement } from "./NightAnnouncement";
 import { RoleActionPanel } from "./RoleActionPanel";
 import { useNightPhase } from "@/hooks/useNightPhase";
+import { useGamePhaseGuard } from "@/hooks/useGamePhaseGuard";
 import { GameRole } from "@/types/roleReveal";
 import { MOCK_PLAYER_PROFILE } from "@/services/dashboard";
-import { INITIAL_DISCUSSION_PLAYERS } from "@/services/discussionService";
 import { Radio, RotateCcw, FastForward, Moon, Loader2 } from "lucide-react";
 
 interface NightContainerProps {
@@ -24,6 +24,7 @@ export function NightContainer({
   initialRole = "traitor",
   roundNumber = 2,
 }: NightContainerProps) {
+  useGamePhaseGuard(roomCode, "NIGHT");
   const router = useRouter();
   const navigatedRef = useRef(false);
   const [isAdvancing, setIsAdvancing] = useState(false);
@@ -35,10 +36,6 @@ export function NightContainer({
     formattedTimer,
     selectTarget,
     submitAction,
-    switchRole,
-    resetAction,
-    resetTimer,
-    fastForward,
   } = useNightPhase(roomCode, initialRole, roundNumber);
 
   // Auto-advance to Morning when timer hits 0 or all actions resolved
@@ -49,19 +46,19 @@ export function NightContainer({
       const t = setTimeout(() => {
         router.push(`/game/morning?room=${roomCode}&round=${roundNumber}`);
       }, 1500);
-      return () => clearTimeout(t);
+  return () => clearTimeout(t);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.timerSeconds, state.allActionsResolved]);
 
-  const handleProceedToMorning = () => {
-    if (navigatedRef.current) return;
-    navigatedRef.current = true;
-    setIsAdvancing(true);
-    setTimeout(() => {
-      router.push(`/game/morning?room=${roomCode}&round=${roundNumber}`);
-    }, 700);
-  };
+  const livePlayers = targets.map((t) => ({
+        id: t.id,
+        name: t.name,
+        avatarUrl: t.avatarUrl,
+        isAlive: t.isAlive,
+        isHost: false,
+        isCurrentUser: t.id === state.currentUserId,
+      }));
 
   return (
     <div className="min-h-screen bg-background text-text-main flex flex-col selection:bg-purple-muted selection:text-gold-light relative overflow-x-hidden">
@@ -104,7 +101,7 @@ export function NightContainer({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch flex-1">
           {/* LEFT COLUMN: Player List (3 cols on lg = ~25% width) */}
           <div className="lg:col-span-3 flex flex-col">
-            <DiscussionPlayerList players={INITIAL_DISCUSSION_PLAYERS} />
+            <DiscussionPlayerList players={livePlayers} />
           </div>
 
           {/* RIGHT COLUMN: Night Phase & Role Action Panel (9 cols on lg = ~75% width) */}
@@ -128,6 +125,7 @@ export function NightContainer({
                 selectedTargetId={state.selectedTargetId}
                 isSubmitted={state.isSubmitted}
                 submittedTargetName={state.submittedTargetName}
+                investigationResult={state.investigationResult}
                 onSelectTarget={selectTarget}
                 onSubmitAction={submitAction}
               />
@@ -135,99 +133,7 @@ export function NightContainer({
           </div>
         </div>
 
-        {/* 4. Evaluator & Demonstration Toolbar */}
-        <div className="w-full flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gold-antique/10 text-[11px] font-sans text-text-secondary/70">
-          <div className="flex items-center gap-2">
-            <Radio className="w-3.5 h-3.5 text-gold-antique animate-pulse" />
-            <span className="text-gold-light/80">Night Action Channel:</span>
-            <span className="bg-[#1A0E1C] px-2 py-0.5 rounded border border-gold-antique/25 font-mono text-[10px] text-text-main">
-              {state.connectionStatus === "connected"
-                ? "Live WebSocket"
-                : "Mock Evaluation Adapter"}
-            </span>
-          </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-text-secondary/50">Preview Role:</span>
-            <button
-              onClick={() => switchRole("traitor")}
-              className={`px-2.5 py-1 rounded text-[10px] font-semibold transition border ${
-                state.currentRole === "traitor"
-                  ? "bg-red-950/80 border-red-500 text-red-300 shadow-[0_0_8px_rgba(220,38,38,0.4)]"
-                  : "bg-[#1A0E1C] border-white/10 text-text-secondary hover:text-red-400"
-              }`}
-            >
-              Traitor
-            </button>
-            <button
-              onClick={() => switchRole("doctor")}
-              className={`px-2.5 py-1 rounded text-[10px] font-semibold transition border ${
-                state.currentRole === "doctor"
-                  ? "bg-emerald-950/80 border-emerald-500 text-emerald-300 shadow-[0_0_8px_rgba(16,185,129,0.4)]"
-                  : "bg-[#1A0E1C] border-white/10 text-text-secondary hover:text-emerald-400"
-              }`}
-            >
-              Doctor
-            </button>
-            <button
-              onClick={() => switchRole("detective")}
-              className={`px-2.5 py-1 rounded text-[10px] font-semibold transition border ${
-                state.currentRole === "detective"
-                  ? "bg-amber-950/80 border-gold-antique text-gold-light shadow-[0_0_8px_rgba(212,175,55,0.4)]"
-                  : "bg-[#1A0E1C] border-white/10 text-text-secondary hover:text-gold-light"
-              }`}
-            >
-              Detective
-            </button>
-            <button
-              onClick={() => switchRole("faithful")}
-              className={`px-2.5 py-1 rounded text-[10px] font-semibold transition border ${
-                state.currentRole === "faithful"
-                  ? "bg-blue-950/80 border-blue-500 text-blue-300 shadow-[0_0_8px_rgba(96,165,250,0.4)]"
-                  : "bg-[#1A0E1C] border-white/10 text-text-secondary hover:text-blue-400"
-              }`}
-            >
-              Faithful
-            </button>
-
-            <span className="text-white/20 mx-1">|</span>
-
-            <button
-              onClick={resetTimer}
-              className="px-2 py-1 rounded bg-[#1A0E1C] hover:bg-[#251528] border border-gold-antique/20 text-gold-light text-[10px] flex items-center gap-1 transition"
-              title="Reset countdown timer to 00:30"
-            >
-              <RotateCcw className="w-3 h-3 text-gold-antique" />
-              <span>Reset Timer (00:30)</span>
-            </button>
-            <button
-              onClick={resetAction}
-              className="px-2 py-1 rounded bg-[#1A0E1C] hover:bg-[#251528] border border-gold-antique/20 text-gold-light text-[10px] transition"
-              title="Reset submitted action"
-            >
-              Reset Action
-            </button>
-
-            <span className="text-white/20 mx-1">|</span>
-
-            <button
-              onClick={() => { fastForward(); }}
-              className="px-2.5 py-1 rounded bg-purple-muted/30 hover:bg-purple-muted/50 border border-purple-muted/60 text-[#C7BAC8] text-[10px] flex items-center gap-1 transition"
-              title="Fast-forward night to 00:00"
-            >
-              <FastForward className="w-3 h-3" />
-              Fast-Forward
-            </button>
-            <button
-              onClick={handleProceedToMorning}
-              className="px-2.5 py-1 rounded bg-gold-antique/20 hover:bg-gold-antique/30 border border-gold-antique/50 text-gold-light text-[10px] flex items-center gap-1 transition font-semibold"
-              title="Skip to Morning Announcement"
-            >
-              <Moon className="w-3 h-3" />
-              Proceed to Morning
-            </button>
-          </div>
-        </div>
       </main>
     </div>
   );

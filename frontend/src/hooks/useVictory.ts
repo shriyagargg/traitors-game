@@ -33,6 +33,5 @@ export function useVictory(
 
   return {
     state,
-    setOutcome: (outcome: VictoryOutcome) => service.setOutcome(outcome),
   };
 }

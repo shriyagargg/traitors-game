@@ -21,6 +21,7 @@ import {
   createRoom,
   RoomOperationResult,
 } from "@/services/rooms";
+import { getPlayerSession, setPlayerSession } from "@/services/playerSession";
 
 interface CreateGameFormProps {
   capacity: PlayerCapacity;
@@ -36,10 +37,16 @@ export function CreateGameForm({
   const router = useRouter();
 
   // Form State
-  const [roomName, setRoomName] = useState("Somya's Game Room");
-  const [nightDuration, setNightDuration] = useState(60);
-  const [discussionDuration, setDiscussionDuration] = useState(180);
-  const [votingDuration, setVotingDuration] = useState(90);
+  const [hostName, setHostName] = useState(() => {
+    if (typeof window !== "undefined") {
+      return getPlayerSession().name;
+    }
+    return "Host";
+  });
+  const [roomName, setRoomName] = useState("Council Chamber");
+  const [nightDuration, setNightDuration] = useState(30);
+  const [discussionDuration, setDiscussionDuration] = useState(120);
+  const [votingDuration, setVotingDuration] = useState(60);
   const [isPrivate, setIsPrivate] = useState(false);
 
   // Status & Feedback
@@ -55,6 +62,10 @@ export function CreateGameForm({
     if (!roomName.trim()) {
       setErrorMessage("Please enter a room name.");
       return;
+    }
+
+    if (hostName.trim()) {
+      setPlayerSession(hostName.trim());
     }
 
     setLoading(true);
@@ -123,7 +134,25 @@ export function CreateGameForm({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Field 0: Your Name (Host) */}
+        <div className="text-left">
+          <label className="block text-xs font-sans text-text-secondary mb-1.5 font-medium">
+            Your Host Name
+          </label>
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#170C1B]/90 border border-gold-antique/25 focus-within:border-gold-antique/70 transition-all">
+            <Users className="w-4 h-4 text-gold-antique shrink-0" />
+            <input
+              type="text"
+              value={hostName}
+              onChange={(e) => setHostName(e.target.value)}
+              maxLength={24}
+              required
+              className="w-full bg-transparent text-sm font-sans text-text-main placeholder:text-text-secondary/50 focus:outline-none"
+            />
+          </div>
+        </div>
+
         {/* Field A: Room Name */}
         <div className="text-left">
           <label className="block text-xs font-sans text-text-secondary mb-1.5 font-medium">

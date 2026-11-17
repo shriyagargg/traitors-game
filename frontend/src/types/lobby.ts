@@ -7,6 +7,7 @@ export interface LobbyPlayer {
   isHost: boolean;
   isReady: boolean;
   isCurrentUser: boolean;
+  isConnected: boolean;
   slotIndex: number;
 }
 
@@ -42,7 +43,7 @@ export interface LobbyRoomState {
   settings: LobbySettings;
   players: LobbyPlayer[];
   messages: LobbyChatMessage[];
-  status: "waiting" | "starting" | "in_progress";
+  status: "waiting" | "starting" | "in_progress" | "playing";
   connectionStatus: LobbyConnectionStatus;
 }
 

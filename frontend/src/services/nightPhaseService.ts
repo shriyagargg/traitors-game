@@ -4,7 +4,8 @@ import {
   NightPhaseState,
   NightPlayerTarget,
 } from "@/types/nightPhase";
-import { INITIAL_DISCUSSION_PLAYERS } from "./discussionService";
+import { getPlayerSession } from "./playerSession";
+import { getApiBaseUrl, getWsBaseUrl } from "./rooms";
 
 export const NIGHT_ROLE_CONFIGS: Record<GameRole, NightRoleConfig> = {
   traitor: {
@@ -59,32 +60,69 @@ export class NightPhaseService {
   private listeners: Set<(state: NightPhaseState) => void> = new Set();
   private timerInterval: NodeJS.Timeout | null = null;
   private socket: WebSocket | null = null;
+  private disposed = false;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private serverPhaseEndsAt: number = 0;
+  private serverPlayers: any[] = [];
 
-  constructor(roomCode = "A7K4D9", initialRole: GameRole = "traitor", roundNumber = 2) {
+  constructor(roomCode = "A7K4D9", initialRole: GameRole = "traitor", roundNumber = 1) {
+    const session = getPlayerSession(roomCode);
+
     this.state = {
       roomCode: roomCode.toUpperCase(),
       roundNumber: roundNumber,
-      timerSeconds: 30, // 00:30 as shown in mockup
+      timerSeconds: 30,
       currentRole: initialRole,
-      currentUserId: "p_somya",
-      selectedTargetId: initialRole === "faithful" ? null : "p_riya", // Pre-select Riya as depicted in reference mockup
+      currentUserId: session.id,
+      selectedTargetId: null,
       isSubmitted: false,
       submittedTargetName: null,
       connectionStatus: "mock_preview",
     };
 
+    this.fetchInitialState();
+    this.initWebSocket();
     this.startCountdown();
-    this.initWebSocket(roomCode);
   }
 
-  private initWebSocket(roomCode: string) {
+  private async fetchInitialState() {
     if (typeof window === "undefined") return;
+    const session = getPlayerSession(this.state.roomCode);
+    const apiUrl = getApiBaseUrl();
 
     try {
-      const wsUrl =
-        process.env.NEXT_PUBLIC_WS_URL ||
-        `ws://localhost:8000/api/v1/ws/game/${roomCode}/night`;
+      const res = await fetch(
+        `${apiUrl}/api/v1/game/${this.state.roomCode}/state?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        this.serverPlayers = data.players || [];
+        if (data.phase_ends_at) {
+          this.serverPhaseEndsAt = data.phase_ends_at;
+          const remaining = Math.max(0, Math.floor(data.phase_ends_at - Date.now() / 1000));
+          this.updateState({
+            timerSeconds: remaining,
+            roundNumber: data.round_number || this.state.roundNumber,
+          });
+        }
+        if (data.viewer_role && data.viewer_role !== "Unknown") {
+          const roleLower = data.viewer_role.toLowerCase() as GameRole;
+          if (["traitor", "doctor", "detective", "faithful"].includes(roleLower)) {
+            this.updateState({ currentRole: roleLower });
+          }
+        }
+      }
+    } catch {
+      // Backend starting
+    }
+  }
 
+  private initWebSocket() {
+    if (typeof window === "undefined") return;
+    const session = getPlayerSession(this.state.roomCode);
+    const wsUrl = `${getWsBaseUrl()}/api/v1/ws/game/${this.state.roomCode}?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}`;
+
+    try {
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
@@ -95,11 +133,24 @@ export class NightPhaseService {
       ws.onmessage = (event) => {
         try {
           const packet = JSON.parse(event.data);
-          if (packet.type === "NIGHT_TIMER_SYNC" && typeof packet.payload?.seconds === "number") {
-            this.updateState({ timerSeconds: packet.payload.seconds });
+          if (packet.type === "PHASE_CHANGED") {
+            const nextPhase = packet.payload?.phase;
+            if (nextPhase === "MORNING" || nextPhase === "DISCUSSION") {
+              this.updateState({ allActionsResolved: true, isTimeUp: true });
+            }
+          } else if (packet.type === "INITIAL_SYNC" && packet.payload) {
+            this.serverPlayers = packet.payload.players || [];
+            if (packet.payload.phase_ends_at) {
+              this.serverPhaseEndsAt = packet.payload.phase_ends_at;
+              const remaining = Math.max(
+                0,
+                Math.floor(packet.payload.phase_ends_at - Date.now() / 1000)
+              );
+              this.updateState({ timerSeconds: remaining });
+            }
           }
         } catch {
-          // ignore corrupted packets
+          // ignore
         }
       };
 
@@ -111,6 +162,9 @@ export class NightPhaseService {
       ws.onclose = () => {
         this.socket = null;
         this.updateState({ connectionStatus: "mock_preview" });
+        if (!this.disposed) {
+          this.reconnectTimer = setTimeout(() => this.initWebSocket(), 1500);
+        }
       };
     } catch {
       this.updateState({ connectionStatus: "mock_preview" });
@@ -121,40 +175,21 @@ export class NightPhaseService {
     if (this.timerInterval) clearInterval(this.timerInterval);
 
     this.timerInterval = setInterval(() => {
-      if (this.state.timerSeconds > 0) {
-        const nextSec = this.state.timerSeconds - 1;
-        this.updateState({
-          timerSeconds: nextSec,
-          isTimeUp: nextSec === 0,
-        });
-        if (nextSec === 0 && !this.state.isSubmitted) {
-          if (this.state.currentRole === "faithful") {
-            // Faithful has no action — just mark resolved so the container navigates
-            setTimeout(() => {
-              this.updateState({ allActionsResolved: true });
-            }, 500);
-          } else {
-            const eligible = this.getEligibleTargets();
-            if (eligible.length > 0) {
-              this.selectTarget(eligible[0].id);
-              this.submitAction();
-            } else {
-              setTimeout(() => {
-                this.updateState({ allActionsResolved: true });
-              }, 500);
-            }
-          }
-        }
-      } else {
-        this.updateState({ isTimeUp: true });
-      }
+      if (!this.serverPhaseEndsAt) return;
+      const nextSec = Math.max(0, Math.floor(this.serverPhaseEndsAt - Date.now() / 1000));
+
+      this.updateState({
+        timerSeconds: nextSec,
+        isTimeUp: nextSec === 0,
+      });
+
     }, 1000);
   }
 
   public fastForward() {
     this.updateState({ timerSeconds: 0, isTimeUp: true });
     if (this.state.currentRole === "faithful") {
-      setTimeout(() => this.updateState({ allActionsResolved: true }), 300);
+      this.updateState({ allActionsResolved: true });
       return;
     }
     if (!this.state.selectedTargetId) {
@@ -185,30 +220,32 @@ export class NightPhaseService {
     this.listeners.forEach((cb) => cb(this.state));
   }
 
-  // Get eligible targets (living players excluding self where applicable)
+  // Get eligible targets (living players excluding self)
   public getEligibleTargets(): NightPlayerTarget[] {
     if (this.state.currentRole === "faithful") {
       return [];
     }
 
-    return INITIAL_DISCUSSION_PLAYERS.filter(
-      (p) => p.id !== this.state.currentUserId
-    ).map((p) => ({
-      id: p.id,
-      name: p.name.replace(" (You)", ""),
-      avatarUrl: p.avatarUrl,
-      isAlive: p.isAlive,
-      isSelectable: p.isAlive,
-    }));
+    if (this.serverPlayers.length > 0) {
+      return this.serverPlayers
+        .filter((p) => p.id !== this.state.currentUserId)
+        .map((p) => ({
+          id: p.id,
+          name: p.name.replace(" (You)", ""),
+          avatarUrl: p.avatar_url || p.avatarUrl || "/images/player_shubh.png",
+          isAlive: p.is_alive ?? (p.status === "ALIVE"),
+          isSelectable: p.is_alive ?? (p.status === "ALIVE"),
+        }));
+    }
+
+    return [];
   }
 
-  // Action: Select target
   public selectTarget(targetId: string) {
     if (this.state.isSubmitted || this.state.currentRole === "faithful") return;
     this.updateState({ selectedTargetId: targetId });
   }
 
-  // Action: Submit Night Action
   public async submitAction(): Promise<{ success: boolean; message: string }> {
     if (!this.state.selectedTargetId && this.state.currentRole !== "faithful") {
       return { success: false, message: "Please select a target first." };
@@ -217,23 +254,38 @@ export class NightPhaseService {
     const target = this.getEligibleTargets().find(
       (t) => t.id === this.state.selectedTargetId
     );
-
     const targetName = target ? target.name : null;
 
+    let actionType = "KILL";
+    const session = getPlayerSession(this.state.roomCode);
+    if (this.state.currentRole === "doctor") actionType = "SAVE";
+    else if (this.state.currentRole === "detective") actionType = "INVESTIGATE";
+
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      await fetch(`${apiUrl}/api/v1/game/${this.state.roomCode}/night-action`, {
+      const apiUrl = getApiBaseUrl();
+      const response = await fetch(`${apiUrl}/api/v1/game/${this.state.roomCode}/night-action`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           playerId: this.state.currentUserId,
           roundNumber: this.state.roundNumber,
-          role: this.state.currentRole,
-          targetId: this.state.selectedTargetId,
+          actionType: actionType,
+          targetId: this.state.selectedTargetId || "none",
+          token: session.token,
         }),
       });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        return { success: false, message: result.message || "Night action was rejected." };
+      }
+      if (result.investigationResult) {
+        this.updateState({ investigationResult: {
+          targetName: result.investigationResult.targetName,
+          isTraitor: result.investigationResult.isTraitor,
+        } });
+      }
     } catch {
-      // Backend action endpoint is in standby
+      return { success: false, message: "Game server is unavailable." };
     }
 
     this.updateState({
@@ -251,14 +303,10 @@ export class NightPhaseService {
     };
   }
 
-  // Demo simulation: Switch role preview
   public switchRole(newRole: GameRole) {
-    const targets = INITIAL_DISCUSSION_PLAYERS.filter(
-      (p) => p.id !== this.state.currentUserId
-    );
     this.updateState({
       currentRole: newRole,
-      selectedTargetId: newRole === "faithful" ? null : targets[3].id, // default to Riya
+      selectedTargetId: null,
       isSubmitted: false,
       submittedTargetName: null,
     });
@@ -276,6 +324,8 @@ export class NightPhaseService {
   }
 
   public destroy() {
+    this.disposed = true;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.timerInterval) {
       clearInterval(this.timerInterval);
       this.timerInterval = null;

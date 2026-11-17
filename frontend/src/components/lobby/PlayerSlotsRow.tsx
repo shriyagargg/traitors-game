@@ -103,6 +103,10 @@ export function PlayerSlotsRow({
                 <span className="text-sm font-semibold text-[#F5EEDC] tracking-wide">
                   {player.name}
                 </span>
+                <span className={`mt-1 flex items-center gap-1 text-[10px] ${player.isConnected ? "text-emerald-400/80" : "text-text-secondary/60"}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${player.isConnected ? "bg-emerald-400" : "bg-text-secondary/40"}`} />
+                  {player.isConnected ? "Connected" : "Reconnecting"}
+                </span>
                 {isCurrentUser && (
                   <span className="text-[10px] text-gold-antique/80 font-medium">
                     (You)
@@ -113,7 +117,8 @@ export function PlayerSlotsRow({
               {/* Status Badge: Ready / Not Ready (Interactive Click to Toggle) */}
               <button
                 type="button"
-                onClick={() => onToggleReady(player.id)}
+                onClick={() => isCurrentUser && onToggleReady(player.id)}
+                disabled={!isCurrentUser}
                 className={`w-full py-1.5 px-2 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm ${
                   player.isReady
                     ? "bg-[#0c2a1c] border border-emerald-500/40 text-emerald-400 hover:bg-[#113826]"
@@ -122,7 +127,7 @@ export function PlayerSlotsRow({
                 title={
                   isCurrentUser
                     ? "Click to toggle your Ready status"
-                    : `Click to toggle ${player.name}'s status (Demo simulation)`
+                    : `${player.name}'s readiness`
                 }
               >
                 {player.isReady ? (

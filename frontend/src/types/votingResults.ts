@@ -43,6 +43,6 @@ export interface VotingResultsState {
   gameOutcome: GameOutcomeStatus;
   traitorsRemaining: number;
   faithfulRemaining: number;
-  connectionStatus: "connected" | "mock_preview";
+  connectionStatus: "connected" | "disconnected";
 }
 

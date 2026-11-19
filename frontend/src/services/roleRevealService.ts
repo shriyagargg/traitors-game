@@ -1,6 +1,6 @@
 import { GameRole, RoleConfig, PlayerSecretIdentity } from "@/types/roleReveal";
 import { getApiBaseUrl } from "./rooms";
-import { getPlayerSession } from "./playerSession";
+import { getPlayerSession, ensureRoomSession } from "./playerSession";
 
 export const ROLE_CONFIGS: Record<GameRole, RoleConfig> = {
   traitor: {
@@ -82,15 +82,18 @@ export const ROLE_CONFIGS: Record<GameRole, RoleConfig> = {
  * Only the requesting authenticated player's secret role is delivered.
  */
 export async function fetchSecretIdentity(
-  roomCode = "A7K4D9",
-  requestedRole?: GameRole
+  roomCode = "",
+  _requestedRole?: GameRole
 ): Promise<PlayerSecretIdentity> {
   const apiUrl = getApiBaseUrl();
-  const session = getPlayerSession(roomCode);
+  let session = getPlayerSession(roomCode);
+  if (!session.token && session.accountToken) {
+    session = await ensureRoomSession(roomCode);
+  }
 
   try {
     const res = await fetch(
-      `${apiUrl}/api/v1/game/${roomCode}/my-role?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}`,
+      `${apiUrl}/api/v1/game/${roomCode}/my-role?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}&account_token=${encodeURIComponent(session.accountToken || "")}`,
       {
         method: "GET",
         headers: { "Content-Type": "application/json" },
@@ -117,15 +120,12 @@ export async function fetchSecretIdentity(
     // Backend game engine endpoint is in standby
   }
 
-  // Fallback demo simulation
-  const finalRole: GameRole = requestedRole || "traitor";
-
   return {
     playerId: session.id,
     playerName: session.name,
     roomCode: roomCode.toUpperCase(),
     roundNumber: 1,
-    role: finalRole,
+    role: "faithful",
     isMock: true,
   };
 }

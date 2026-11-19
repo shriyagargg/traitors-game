@@ -1,51 +1,61 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { VotingService } from "@/services/votingService";
+import { getPlayerSession } from "@/services/playerSession";
 import { VotingPhaseState, VotingTarget } from "@/types/votingPhase";
 
-export function useVotingPhase(roomCode = "A7K4D9", roundNumber = 2) {
-  const serviceRef = useRef<VotingService | null>(null);
-  if (serviceRef.current === null) {
-    serviceRef.current = new VotingService(roomCode, roundNumber);
-  }
-  const service = serviceRef.current;
+function initialState(roomCode: string, roundNumber: number): VotingPhaseState {
+  const session = getPlayerSession(roomCode);
+  return {
+    roomCode: roomCode.toUpperCase(),
+    roundNumber,
+    phaseType: "Day",
+    timerSeconds: 0,
+    currentUserId: session.id,
+    selectedTargetId: null,
+    isSubmitted: false,
+    submittedTargetName: null,
+    connectionStatus: "disconnected",
+    hasSynced: false,
+    allPlayers: [],
+    targets: [],
+  };
+}
 
-  const [state, setState] = useState<VotingPhaseState>(() => service.getState());
+export function useVotingPhase(roomCode = "", roundNumber = 1) {
+  const serviceRef = useRef<VotingService | null>(null);
+  const [state, setState] = useState<VotingPhaseState>(() => initialState(roomCode, roundNumber));
 
   useEffect(() => {
-    setState({ ...service.getState() });
-
-    const unsubscribe = service.subscribe((newState) => {
-      setState({ ...newState });
-    });
+    const service = new VotingService(roomCode, roundNumber);
+    serviceRef.current = service;
+    const unsubscribe = service.subscribe((nextState) => setState({ ...nextState }));
 
     return () => {
       unsubscribe();
       service.destroy();
-      serviceRef.current = null;
+      if (serviceRef.current === service) serviceRef.current = null;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [roomCode, roundNumber]);
 
-  const targets: VotingTarget[] = service.getEligibleTargets();
-
+  const targets: VotingTarget[] = state.targets || [];
+  const allPlayers = state.allPlayers || [];
   const formattedTimer = useMemo(() => {
     const mins = Math.floor(state.timerSeconds / 60);
     const secs = state.timerSeconds % 60;
-    const mm = mins < 10 ? `0${mins}` : `${mins}`;
-    const ss = secs < 10 ? `0${secs}` : `${secs}`;
-    return `${mm}:${ss}`;
+    return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   }, [state.timerSeconds]);
 
   return {
     state,
     targets,
+    allPlayers,
     formattedTimer,
-    selectTarget: (id: string) => service.selectTarget(id),
-    submitVote: () => service.submitVote(),
-    resetVote: () => service.resetVote(),
-    resetTimer: () => service.resetTimer(),
-    fastForward: () => service.fastForward(),
+    selectTarget: (id: string) => serviceRef.current?.selectTarget(id),
+    submitVote: () => serviceRef.current
+      ? serviceRef.current.submitVote()
+      : Promise.resolve({ success: false, message: "Voting is still connecting." }),
+    resetVote: () => serviceRef.current?.resetVote(),
   };
 }

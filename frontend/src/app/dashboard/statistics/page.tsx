@@ -7,19 +7,16 @@ import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { StatsRow } from "@/components/dashboard/StatsRow";
 import { RoleDonutChart } from "@/components/dashboard/RoleDonutChart";
-import {
-  MOCK_PLAYER_PROFILE,
-  MOCK_PLAYER_STATS,
-  MOCK_ROLE_DISTRIBUTION,
-} from "@/services/dashboard";
+import { useDashboardData } from "@/hooks/useDashboardData";
 
 export default function StatisticsPage() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const { data, profile } = useDashboardData();
 
   return (
     <div className="min-h-screen bg-background text-text-main flex flex-col relative overflow-x-hidden">
       <DashboardHeader
-        profile={MOCK_PLAYER_PROFILE}
+        profile={profile}
         onToggleMobileSidebar={() => setMobileSidebarOpen(!mobileSidebarOpen)}
       />
 
@@ -49,15 +46,20 @@ export default function StatisticsPage() {
               </h1>
             </div>
 
-            <StatsRow stats={MOCK_PLAYER_STATS} />
+            {data && <StatsRow stats={{ gamesPlayed: data.stats.games_played, wins: data.stats.wins, winRate: data.stats.win_rate, currentStreak: data.stats.current_streak, reputation: data.stats.reputation }} />}
 
             <div className="mt-8 p-6 rounded-2xl bg-[#170C1B] border border-gold-antique/20 max-w-md">
               <h3 className="font-cormorant text-xl font-normal text-text-main mb-4">
                 Role Frequency Breakdown
               </h3>
               <RoleDonutChart
-                stats={MOCK_ROLE_DISTRIBUTION}
-                totalGames={MOCK_PLAYER_STATS.gamesPlayed}
+                stats={data ? [
+                  { role: "Traitor", count: data.stats.traitor_count, percentage: 0, color: "#e11d48" },
+                  { role: "Doctor", count: data.stats.doctor_count, percentage: 0, color: "#10b981" },
+                  { role: "Detective", count: data.stats.detective_count, percentage: 0, color: "#d4af37" },
+                  { role: "Faithful", count: data.stats.faithful_count, percentage: 0, color: "#3b82f6" },
+                ] : []}
+                totalGames={(data?.stats.games_played || 0)}
               />
             </div>
           </div>

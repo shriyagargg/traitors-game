@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import Image from "next/image";
 import { VoteTallyItem } from "@/types/votingResults";
 import { Shield, Skull, CheckCircle2 } from "lucide-react";
 
@@ -52,13 +51,7 @@ export function VoteTallyBreakdown({
                         : "ring-1 ring-white/15"
                     }`}
                   >
-                    <Image
-                      src={item.targetAvatarUrl}
-                      alt={item.targetName}
-                      fill
-                      unoptimized
-                      className="object-cover"
-                    />
+                    {item.targetAvatarUrl ? <img src={item.targetAvatarUrl} alt={item.targetName} className="h-full w-full object-cover" /> : <span className="flex h-full w-full items-center justify-center bg-[#2a1d2d] text-xs font-bold text-white">{item.targetName.slice(0, 2).toUpperCase()}</span>}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">

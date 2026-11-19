@@ -28,6 +28,6 @@ export interface VictoryState {
   architectVerdict: string;
   revealedPlayers: RevealedPlayer[];
   stats: MatchStatItem[];
-  connectionStatus: "connected" | "mock_preview";
+  connectionStatus: "connected" | "disconnected";
 }
 

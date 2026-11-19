@@ -32,11 +32,16 @@ export interface NightPhaseState {
   timerSeconds: number;
   currentRole: GameRole;
   currentUserId: string;
+  serverPhase?: string;
   selectedTargetId: string | null;
   isSubmitted: boolean;
   submittedTargetName: string | null;
-  connectionStatus: "connected" | "mock_preview";
+  connectionStatus: "connected" | "disconnected";
+  hasSynced?: boolean;
   isTimeUp?: boolean;
   allActionsResolved?: boolean;
   investigationResult?: { targetName: string; isTraitor: boolean } | null;
+  // Players list stored in state so React re-renders when it changes
+  allPlayers?: any[];
+  targets?: NightPlayerTarget[];
 }

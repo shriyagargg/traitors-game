@@ -4,6 +4,14 @@ from app.main import app
 from app.ai_engine.agents.architect import architect_agent
 
 
+async def authenticated(client, username):
+    import uuid
+    suffix = uuid.uuid4().hex[:8]
+    response = await client.post("/api/v1/auth/register", json={"username": f"{username}{suffix}", "email": f"{username.lower()}{suffix}@example.com", "password": "secure-pass-123"})
+    assert response.status_code == 200, response.text
+    return response.json()["access_token"]
+
+
 @pytest.mark.asyncio
 async def test_architect_morning_announcements():
     # 1. Victim eliminated
@@ -42,7 +50,8 @@ async def test_architect_hint_endpoint():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # Create room first
-        res = await client.post("/api/v1/game/create", json={"host_name": "Somya"})
+        token = await authenticated(client, "Somya")
+        res = await client.post("/api/v1/game/create", json={}, headers={"Authorization": f"Bearer {token}"})
         code = res.json()["room_code"]
 
         # Request hint

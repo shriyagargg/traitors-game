@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, Lock, User, Eye, EyeOff, ArrowRight, Loader2, Check } from "lucide-react";
 import { SocialAuth } from "./SocialAuth";
 import {
@@ -10,6 +11,7 @@ import {
   validateEmail,
   evaluatePasswordStrength,
 } from "@/services/auth";
+import { saveAccountSession } from "@/services/playerSession";
 
 export type AuthMode = "login" | "register" | "forgot";
 
@@ -19,6 +21,8 @@ interface AuthCardProps {
 }
 
 export function AuthCard({ initialMode = "login", onModeChange }: AuthCardProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<AuthMode>(initialMode);
 
   // Form Fields - Login
@@ -78,7 +82,10 @@ export function AuthCard({ initialMode = "login", onModeChange }: AuthCardProps)
       });
 
       if (res.success) {
-        setSuccessMessage(res.message);
+        if (!res.token || !res.user) { setErrorMessage("Authentication did not return a valid account session."); return; }
+        saveAccountSession(res.user, res.token);
+        const returnTo = searchParams.get("returnTo");
+        router.replace(returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/dashboard");
       } else {
         setErrorMessage(res.message);
       }
@@ -121,7 +128,10 @@ export function AuthCard({ initialMode = "login", onModeChange }: AuthCardProps)
       });
 
       if (res.success) {
-        setSuccessMessage(res.message);
+        if (!res.token || !res.user) { setErrorMessage("Registration did not return a valid account session."); return; }
+        saveAccountSession(res.user, res.token);
+        const returnTo = searchParams.get("returnTo");
+        router.replace(returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/dashboard");
       } else {
         setErrorMessage(res.message);
       }
@@ -158,18 +168,18 @@ export function AuthCard({ initialMode = "login", onModeChange }: AuthCardProps)
   };
 
   return (
-    <div className="w-full max-w-[480px] mx-auto rounded-3xl bg-[#120A14]/85 border border-gold-antique/30 backdrop-blur-xl p-7 sm:p-9 shadow-[0_10px_40px_rgba(36,16,31,0.6)] z-10 relative">
+    <div className="w-full max-w-[440px] mx-auto rounded-2xl bg-[#19151d] border border-white/10 p-6 sm:p-8 shadow-xl z-10 relative">
       {/* 1. Pill Tabs: Login / Register (Hidden in Forgot Password state) */}
       {mode !== "forgot" ? (
         <div className="flex items-center justify-center mb-6">
-          <div className="inline-flex rounded-full p-1 bg-[#1A0E1C] border border-gold-antique/20 shadow-inner">
+          <div className="inline-flex rounded-lg p-1 bg-[#100d13] border border-white/10">
             <button
               type="button"
               onClick={() => switchMode("login")}
-              className={`px-8 py-2 rounded-full text-sm font-sans transition-all duration-300 ${
+              className={`px-7 py-2 rounded-md text-sm font-sans transition-all duration-300 ${
                 mode === "login"
-                  ? "bg-gold-light text-background font-semibold shadow-[0_0_15px_rgba(242,216,154,0.35)]"
-                  : "text-text-secondary hover:text-text-main font-medium"
+                  ? "bg-[#392c40] text-white font-semibold"
+                  : "text-[#aaa0ad] hover:text-white font-medium"
               }`}
             >
               Login
@@ -177,10 +187,10 @@ export function AuthCard({ initialMode = "login", onModeChange }: AuthCardProps)
             <button
               type="button"
               onClick={() => switchMode("register")}
-              className={`px-8 py-2 rounded-full text-sm font-sans transition-all duration-300 ${
+              className={`px-7 py-2 rounded-md text-sm font-sans transition-all duration-300 ${
                 mode === "register"
-                  ? "bg-gold-light text-background font-semibold shadow-[0_0_15px_rgba(242,216,154,0.35)]"
-                  : "text-text-secondary hover:text-text-main font-medium"
+                  ? "bg-[#392c40] text-white font-semibold"
+                  : "text-[#aaa0ad] hover:text-white font-medium"
               }`}
             >
               Register
@@ -192,7 +202,7 @@ export function AuthCard({ initialMode = "login", onModeChange }: AuthCardProps)
           <button
             type="button"
             onClick={() => switchMode("login")}
-            className="text-xs font-sans text-gold-antique hover:text-gold-light underline tracking-wider"
+            className="text-xs text-[#c4a6d2] hover:text-white tracking-wide"
           >
             ← Return to Council Login
           </button>
@@ -214,14 +224,14 @@ export function AuthCard({ initialMode = "login", onModeChange }: AuthCardProps)
       {/* 3. Form Content Based on Mode */}
       {mode === "login" && (
         <>
-          <h2 className="font-cormorant text-2xl sm:text-3xl font-normal text-text-main text-center mb-6 tracking-wide">
+          <h2 className="text-xl font-semibold text-white text-left mb-2 tracking-tight">
             Login to Your Account
           </h2>
 
           <form onSubmit={handleLoginSubmit} className="space-y-4">
             {/* Email Field */}
-            <div className="flex items-center gap-3.5 px-4 py-3.5 rounded-xl bg-[#170C1B]/90 border border-gold-antique/25 focus-within:border-gold-antique/70 focus-within:shadow-[0_0_15px_rgba(212,175,55,0.15)] transition-all">
-              <Mail className="w-5 h-5 text-gold-antique/80 shrink-0" />
+            <div className="flex items-center gap-3.5 px-4 py-3.5 rounded-xl bg-[#100d13] border border-white/10 focus-within:border-[#a78ab2] transition-all">
+              <Mail className="w-5 h-5 text-[#a994b1] shrink-0" />
               <input
                 type="email"
                 placeholder="Email address"
@@ -233,8 +243,8 @@ export function AuthCard({ initialMode = "login", onModeChange }: AuthCardProps)
             </div>
 
             {/* Password Field */}
-            <div className="flex items-center gap-3.5 px-4 py-3.5 rounded-xl bg-[#170C1B]/90 border border-gold-antique/25 focus-within:border-gold-antique/70 focus-within:shadow-[0_0_15px_rgba(212,175,55,0.15)] transition-all">
-              <Lock className="w-5 h-5 text-gold-antique/80 shrink-0" />
+            <div className="flex items-center gap-3.5 px-4 py-3.5 rounded-xl bg-[#100d13] border border-white/10 focus-within:border-[#a78ab2] transition-all">
+              <Lock className="w-5 h-5 text-[#a994b1] shrink-0" />
               <input
                 type={showLoginPassword ? "text" : "password"}
                 placeholder="Password"
@@ -246,7 +256,7 @@ export function AuthCard({ initialMode = "login", onModeChange }: AuthCardProps)
               <button
                 type="button"
                 onClick={() => setShowLoginPassword(!showLoginPassword)}
-                className="text-gold-antique/70 hover:text-gold-light transition p-0.5"
+                className="text-[#a994b1] hover:text-white transition p-0.5"
                 aria-label="Toggle password visibility"
               >
                 {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -265,7 +275,7 @@ export function AuthCard({ initialMode = "login", onModeChange }: AuthCardProps)
                 <div
                   className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
                     rememberMe
-                      ? "bg-gold-antique border-gold-antique text-background"
+                      ? "bg-[#9b7ba6] border-[#9b7ba6] text-white"
                       : "border-gold-antique/40 bg-bg-secondary"
                   }`}
                 >
@@ -312,7 +322,7 @@ export function AuthCard({ initialMode = "login", onModeChange }: AuthCardProps)
             <button
               type="button"
               onClick={() => switchMode("register")}
-              className="text-gold-light hover:text-gold-antique font-medium underline transition"
+              className="text-gold-light hover:text-[#c4a6d2] font-medium underline transition"
             >
               Register here
             </button>
@@ -322,14 +332,14 @@ export function AuthCard({ initialMode = "login", onModeChange }: AuthCardProps)
 
       {mode === "register" && (
         <>
-          <h2 className="font-cormorant text-2xl sm:text-3xl font-normal text-text-main text-center mb-6 tracking-wide">
+          <h2 className="text-xl font-semibold text-white text-left mb-2 tracking-tight">
             Create Your Account
           </h2>
 
           <form onSubmit={handleRegisterSubmit} className="space-y-4">
             {/* Username Field */}
-            <div className="flex items-center gap-3.5 px-4 py-3.5 rounded-xl bg-[#170C1B]/90 border border-gold-antique/25 focus-within:border-gold-antique/70 focus-within:shadow-[0_0_15px_rgba(212,175,55,0.15)] transition-all">
-              <User className="w-5 h-5 text-gold-antique/80 shrink-0" />
+            <div className="flex items-center gap-3.5 px-4 py-3.5 rounded-xl bg-[#100d13] border border-white/10 focus-within:border-[#a78ab2] transition-all">
+              <User className="w-5 h-5 text-[#a994b1] shrink-0" />
               <input
                 type="text"
                 placeholder="Username (Council Alias)"
@@ -341,8 +351,8 @@ export function AuthCard({ initialMode = "login", onModeChange }: AuthCardProps)
             </div>
 
             {/* Email Field */}
-            <div className="flex items-center gap-3.5 px-4 py-3.5 rounded-xl bg-[#170C1B]/90 border border-gold-antique/25 focus-within:border-gold-antique/70 focus-within:shadow-[0_0_15px_rgba(212,175,55,0.15)] transition-all">
-              <Mail className="w-5 h-5 text-gold-antique/80 shrink-0" />
+            <div className="flex items-center gap-3.5 px-4 py-3.5 rounded-xl bg-[#100d13] border border-white/10 focus-within:border-[#a78ab2] transition-all">
+              <Mail className="w-5 h-5 text-[#a994b1] shrink-0" />
               <input
                 type="email"
                 placeholder="Email address"
@@ -355,8 +365,8 @@ export function AuthCard({ initialMode = "login", onModeChange }: AuthCardProps)
 
             {/* Password Field */}
             <div>
-              <div className="flex items-center gap-3.5 px-4 py-3.5 rounded-xl bg-[#170C1B]/90 border border-gold-antique/25 focus-within:border-gold-antique/70 focus-within:shadow-[0_0_15px_rgba(212,175,55,0.15)] transition-all">
-                <Lock className="w-5 h-5 text-gold-antique/80 shrink-0" />
+              <div className="flex items-center gap-3.5 px-4 py-3.5 rounded-xl bg-[#100d13] border border-white/10 focus-within:border-[#a78ab2] transition-all">
+                <Lock className="w-5 h-5 text-[#a994b1] shrink-0" />
                 <input
                   type={showRegPassword ? "text" : "password"}
                   placeholder="Password"
@@ -368,7 +378,7 @@ export function AuthCard({ initialMode = "login", onModeChange }: AuthCardProps)
                 <button
                   type="button"
                   onClick={() => setShowRegPassword(!showRegPassword)}
-                  className="text-gold-antique/70 hover:text-gold-light transition p-0.5"
+                  className="text-[#a994b1] hover:text-white transition p-0.5"
                   aria-label="Toggle password visibility"
                 >
                   {showRegPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -400,8 +410,8 @@ export function AuthCard({ initialMode = "login", onModeChange }: AuthCardProps)
 
             {/* Confirm Password Field */}
             <div>
-              <div className="flex items-center gap-3.5 px-4 py-3.5 rounded-xl bg-[#170C1B]/90 border border-gold-antique/25 focus-within:border-gold-antique/70 focus-within:shadow-[0_0_15px_rgba(212,175,55,0.15)] transition-all">
-                <Lock className="w-5 h-5 text-gold-antique/80 shrink-0" />
+              <div className="flex items-center gap-3.5 px-4 py-3.5 rounded-xl bg-[#100d13] border border-white/10 focus-within:border-[#a78ab2] transition-all">
+                <Lock className="w-5 h-5 text-[#a994b1] shrink-0" />
                 <input
                   type={showConfirmPassword ? "text" : "password"}
                   placeholder="Confirm Password"
@@ -413,7 +423,7 @@ export function AuthCard({ initialMode = "login", onModeChange }: AuthCardProps)
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="text-gold-antique/70 hover:text-gold-light transition p-0.5"
+                  className="text-[#a994b1] hover:text-white transition p-0.5"
                   aria-label="Toggle confirm password visibility"
                 >
                   {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -456,7 +466,7 @@ export function AuthCard({ initialMode = "login", onModeChange }: AuthCardProps)
             <button
               type="button"
               onClick={() => switchMode("login")}
-              className="text-gold-light hover:text-gold-antique font-medium underline transition"
+              className="text-gold-light hover:text-[#c4a6d2] font-medium underline transition"
             >
               Login here
             </button>
@@ -474,8 +484,8 @@ export function AuthCard({ initialMode = "login", onModeChange }: AuthCardProps)
           </p>
 
           <form onSubmit={handleResetSubmit} className="space-y-4">
-            <div className="flex items-center gap-3.5 px-4 py-3.5 rounded-xl bg-[#170C1B]/90 border border-gold-antique/25 focus-within:border-gold-antique/70 focus-within:shadow-[0_0_15px_rgba(212,175,55,0.15)] transition-all">
-              <Mail className="w-5 h-5 text-gold-antique/80 shrink-0" />
+            <div className="flex items-center gap-3.5 px-4 py-3.5 rounded-xl bg-[#100d13] border border-white/10 focus-within:border-[#a78ab2] transition-all">
+              <Mail className="w-5 h-5 text-[#a994b1] shrink-0" />
               <input
                 type="email"
                 placeholder="Email address"
@@ -510,7 +520,7 @@ export function AuthCard({ initialMode = "login", onModeChange }: AuthCardProps)
             <button
               type="button"
               onClick={() => switchMode("login")}
-              className="text-gold-light hover:text-gold-antique font-medium underline transition"
+              className="text-gold-light hover:text-[#c4a6d2] font-medium underline transition"
             >
               Back to Login
             </button>

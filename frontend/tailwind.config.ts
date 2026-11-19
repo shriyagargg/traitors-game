@@ -9,15 +9,15 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#09060D",
-        "bg-secondary": "#120A14",
-        "burgundy-deep": "#24101F",
-        "purple-muted": "#54265F",
-        "purple-glow": "#8B4AA8",
-        "gold-antique": "#D4AF37",
-        "gold-light": "#F2D89A",
-        "text-main": "#F5EEDC",
-        "text-secondary": "#C7BAC8",
+        background: "#100d13",
+        "bg-secondary": "#1b171f",
+        "burgundy-deep": "#2a1d2d",
+        "purple-muted": "#60466a",
+        "purple-glow": "#8b6f96",
+        "gold-antique": "#b99ca5",
+        "gold-light": "#e1cbd4",
+        "text-main": "#f5f1f7",
+        "text-secondary": "#b9b0bd",
       },
       fontFamily: {
         cinzel: ["var(--font-cinzel)", "Cinzel", "Georgia", "serif"],

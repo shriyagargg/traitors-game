@@ -10,7 +10,7 @@ export class VictoryService {
   private state: VictoryState;
   private listeners: Set<(state: VictoryState) => void> = new Set();
 
-  constructor(roomCode = "A7K4D9", initialOutcome: VictoryOutcome = "FAITHFUL_VICTORY") {
+  constructor(roomCode = "", initialOutcome: VictoryOutcome = "FAITHFUL_VICTORY") {
     this.state = {
       roomCode: roomCode.toUpperCase(),
       outcome: initialOutcome,
@@ -20,7 +20,7 @@ export class VictoryService {
       architectVerdict: "The game has ended.",
       revealedPlayers: [],
       stats: [],
-      connectionStatus: "mock_preview",
+      connectionStatus: "disconnected",
     };
 
     this.fetchVictoryData();
@@ -33,7 +33,7 @@ export class VictoryService {
 
     try {
       const res = await fetch(
-        `${apiUrl}/api/v1/game/${this.state.roomCode}/state?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}`
+        `${apiUrl}/api/v1/game/${this.state.roomCode}/state?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}&account_token=${encodeURIComponent(session.accountToken || "")}`
       );
       if (res.ok) {
         const data = await res.json();
@@ -41,7 +41,7 @@ export class VictoryService {
           const mapped: RevealedPlayer[] = data.players.map((p: any) => ({
             id: p.id,
             name: p.name,
-            avatarUrl: p.avatar_url || p.avatarUrl || "/images/player_somya.png",
+            avatarUrl: p.avatar_url || p.avatarUrl || "",
             role: p.role,
             isTraitor: p.role === "Traitor",
             status: p.status === "ALIVE" ? "SURVIVED" : p.status,

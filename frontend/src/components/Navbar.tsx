@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { CrownIcon } from "./CrownIcon";
+import { useRouter } from "next/navigation";
 
 interface NavbarProps {
   activeSection?: string;
@@ -11,6 +12,25 @@ interface NavbarProps {
 
 export function Navbar({ activeSection = "home" }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("agy_player_session");
+      if (raw) {
+        const session = JSON.parse(raw);
+        setIsLoggedIn(!!session?.accountToken);
+      }
+    } catch {}
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("agy_player_session");
+    localStorage.removeItem("agy_room_sessions");
+    setIsLoggedIn(false);
+    router.push("/");
+  };
 
   return (
     <nav className="w-full max-w-7xl mx-auto px-6 sm:px-10 lg:px-16 pt-7 pb-4 flex items-center justify-between z-30 relative">
@@ -51,18 +71,37 @@ export function Navbar({ activeSection = "home" }: NavbarProps) {
 
         {/* Auth Buttons */}
         <div className="flex items-center gap-3.5 pl-2">
-          <Link
-            href="/auth/login"
-            className="border border-gold-antique/80 hover:border-gold-antique hover:bg-gold-antique/10 text-text-main px-5 py-1.5 rounded-lg text-sm font-medium transition duration-200 backdrop-blur-sm shadow-[0_0_10px_rgba(212,175,55,0.1)]"
-          >
-            Login
-          </Link>
-          <Link
-            href="/auth/register"
-            className="bg-gold-light hover:bg-gold-antique text-background px-5 py-1.5 rounded-lg text-sm font-semibold transition duration-200 shadow-[0_0_18px_rgba(242,216,154,0.3)] hover:shadow-[0_0_22px_rgba(212,175,55,0.4)]"
-          >
-            Register
-          </Link>
+          {isLoggedIn ? (
+            <>
+              <Link
+                href="/dashboard"
+                className="border border-gold-antique/80 hover:border-gold-antique hover:bg-gold-antique/10 text-text-main px-5 py-1.5 rounded-lg text-sm font-medium transition duration-200 backdrop-blur-sm shadow-[0_0_10px_rgba(212,175,55,0.1)]"
+              >
+                Dashboard
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="bg-gold-light hover:bg-gold-antique text-background px-5 py-1.5 rounded-lg text-sm font-semibold transition duration-200 shadow-[0_0_18px_rgba(242,216,154,0.3)] hover:shadow-[0_0_22px_rgba(212,175,55,0.4)]"
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/auth/login"
+                className="border border-gold-antique/80 hover:border-gold-antique hover:bg-gold-antique/10 text-text-main px-5 py-1.5 rounded-lg text-sm font-medium transition duration-200 backdrop-blur-sm shadow-[0_0_10px_rgba(212,175,55,0.1)]"
+              >
+                Login
+              </Link>
+              <Link
+                href="/auth/register"
+                className="bg-gold-light hover:bg-gold-antique text-background px-5 py-1.5 rounded-lg text-sm font-semibold transition duration-200 shadow-[0_0_18px_rgba(242,216,154,0.3)] hover:shadow-[0_0_22px_rgba(212,175,55,0.4)]"
+              >
+                Register
+              </Link>
+            </>
+          )}
         </div>
       </div>
 
@@ -100,20 +139,40 @@ export function Navbar({ activeSection = "home" }: NavbarProps) {
             The Architect
           </a>
           <div className="flex flex-col gap-2.5 pt-2">
-            <Link
-              href="/auth/login"
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full text-center border border-gold-antique/80 text-text-main py-2.5 rounded-lg text-sm font-medium"
-            >
-              Login
-            </Link>
-            <Link
-              href="/auth/register"
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full text-center bg-gold-light text-background py-2.5 rounded-lg text-sm font-semibold"
-            >
-              Register
-            </Link>
+            {isLoggedIn ? (
+              <>
+                <Link
+                  href="/dashboard"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full text-center border border-gold-antique/80 text-text-main py-2.5 rounded-lg text-sm font-medium"
+                >
+                  Dashboard
+                </Link>
+                <button
+                  onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
+                  className="w-full text-center bg-gold-light text-background py-2.5 rounded-lg text-sm font-semibold"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/auth/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full text-center border border-gold-antique/80 text-text-main py-2.5 rounded-lg text-sm font-medium"
+                >
+                  Login
+                </Link>
+                <Link
+                  href="/auth/register"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full text-center bg-gold-light text-background py-2.5 rounded-lg text-sm font-semibold"
+                >
+                  Register
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}

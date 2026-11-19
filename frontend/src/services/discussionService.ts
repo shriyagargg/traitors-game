@@ -5,7 +5,7 @@ import {
   DiscussionState,
 } from "@/types/discussion";
 import { getApiBaseUrl, getWsBaseUrl } from "./rooms";
-import { getPlayerSession } from "./playerSession";
+import { getPlayerSession, ensureRoomSession } from "./playerSession";
 
 export const INITIAL_ARCHITECT_ANNOUNCEMENT: ArchitectAnnouncement = {
   id: "ann_architect",
@@ -23,7 +23,7 @@ export class DiscussionService {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private serverPhaseEndsAt: number = 0;
 
-  constructor(roomCode = "A7K4D9", roundNumber = 1) {
+  constructor(roomCode = "", roundNumber = 1) {
     const session = getPlayerSession(roomCode);
 
     this.state = {
@@ -31,27 +31,40 @@ export class DiscussionService {
       roundNumber: roundNumber,
       phaseName: "Discussion",
       phaseType: "Day",
-      timerSeconds: 120,
+      timerSeconds: 0,
       announcement: { ...INITIAL_ARCHITECT_ANNOUNCEMENT },
       players: [],
       messages: [],
-      connectionStatus: "mock_preview",
+      connectionStatus: "disconnected",
+      hasSynced: false,
     };
 
-    this.fetchInitialState();
-    this.initWebSocket();
+    void this.init();
     this.startCountdown();
+  }
+
+  private async init() {
+    if (typeof window === "undefined") return;
+    let session = getPlayerSession(this.state.roomCode);
+    if (!session.token && session.accountToken) {
+      session = await ensureRoomSession(this.state.roomCode);
+    }
+    await this.fetchInitialState();
+    this.initWebSocket();
   }
 
   private async fetchInitialState() {
     if (typeof window === "undefined") return;
-    const session = getPlayerSession(this.state.roomCode);
+    let session = getPlayerSession(this.state.roomCode);
+    if (!session.token && session.accountToken) {
+      session = await ensureRoomSession(this.state.roomCode);
+    }
     const apiUrl = getApiBaseUrl();
 
     try {
       // 1. Fetch game state
       const res = await fetch(
-        `${apiUrl}/api/v1/game/${this.state.roomCode}/state?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}`
+        `${apiUrl}/api/v1/game/${this.state.roomCode}/state?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}&account_token=${encodeURIComponent(session.accountToken || "")}`
       );
       if (res.ok) {
         const data = await res.json();
@@ -59,7 +72,7 @@ export class DiscussionService {
       }
 
       // 2. Fetch chat history
-      const msgRes = await fetch(`${apiUrl}/api/v1/game/${this.state.roomCode}/messages`);
+      const msgRes = await fetch(`${apiUrl}/api/v1/game/${this.state.roomCode}/messages?player_id=${encodeURIComponent(session.id)}&token=${encodeURIComponent(session.token || "")}&account_token=${encodeURIComponent(session.accountToken || "")}`);
       if (msgRes.ok) {
         const msgData = await msgRes.json();
         if (msgData.messages && Array.isArray(msgData.messages)) {
@@ -77,16 +90,18 @@ export class DiscussionService {
     const mappedPlayers: DiscussionPlayer[] = data.players.map((p: any) => ({
       id: p.id,
       name: p.name,
-      avatarUrl: p.avatar_url || p.avatarUrl || "/images/player_somya.png",
+      avatarUrl: p.avatar_url || p.avatarUrl || "",
       isAlive: p.is_alive ?? (p.status === "ALIVE"),
       isHost: p.is_host ?? false,
       isCurrentUser: p.id === currentUserId,
       isMuted: false,
     }));
 
-    if (data.phase_ends_at) {
-      this.serverPhaseEndsAt = data.phase_ends_at;
-      const remaining = Math.max(0, Math.floor(data.phase_ends_at - Date.now() / 1000));
+    if (data.phase_ends_at || typeof data.timer_seconds === "number") {
+      this.serverPhaseEndsAt = Number(data.phase_ends_at) || 0;
+      const remaining = this.serverPhaseEndsAt
+        ? Math.max(0, Math.ceil(this.serverPhaseEndsAt - Date.now() / 1000))
+        : 0;
       this.updateState({
         timerSeconds: remaining,
         roundNumber: data.round_number || this.state.roundNumber,
@@ -99,18 +114,21 @@ export class DiscussionService {
     this.updateState({
       players: mappedPlayers,
       roundNumber: data.round_number || this.state.roundNumber,
+      serverPhase: data.phase || this.state.serverPhase,
       announcement: {
         ...this.state.announcement,
         message: announcementText,
       },
       connectionStatus: "connected",
+      hasSynced: true,
     });
   }
 
   private initWebSocket() {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || this.disposed) return;
     const session = getPlayerSession(this.state.roomCode);
-    const wsUrl = `${getWsBaseUrl()}/api/v1/ws/game/${this.state.roomCode}?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}`;
+    if (!session.token) return;
+    const wsUrl = `${getWsBaseUrl()}/api/v1/ws/game/${this.state.roomCode}?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}&account_token=${encodeURIComponent(session.accountToken || "")}`;
 
     try {
       const ws = new WebSocket(wsUrl);
@@ -118,7 +136,6 @@ export class DiscussionService {
       ws.onopen = () => {
         this.socket = ws;
         this.updateState({ connectionStatus: "connected" });
-        void this.fetchInitialState();
       };
 
       ws.onmessage = (event) => {
@@ -128,8 +145,11 @@ export class DiscussionService {
             this.syncState(packet.payload, session.id);
           } else if (packet.type === "PHASE_CHANGED") {
             const nextPhase = packet.payload?.phase;
+            if (nextPhase) this.updateState({ serverPhase: nextPhase });
             if (nextPhase === "VOTING") {
-              this.updateState({ isTimeUp: true, timerSeconds: 0 });
+              this.serverPhaseEndsAt = packet.payload.phase_ends_at || 0;
+              this.updateState({ isTimeUp: false, timerSeconds: Math.max(0, Math.ceil(this.serverPhaseEndsAt - Date.now() / 1000)) });
+              this.startCountdown();
             } else if (packet.payload) {
               this.syncState(packet.payload, session.id);
             }
@@ -141,10 +161,11 @@ export class DiscussionService {
               id: packet.payload.id || `msg_${Date.now()}`,
               senderId: packet.payload.senderId,
               senderName: packet.payload.senderName,
-              avatarUrl: packet.payload.avatarUrl || "/images/player_somya.png",
+              avatarUrl: packet.payload.avatarUrl || "",
               timestamp: packet.payload.timestamp || "Now",
               text: packet.payload.text || packet.payload.content || "",
               isArchitect: packet.payload.isArchitect || false,
+              isAI: packet.payload.isAI || false,
             };
 
             // Avoid duplicate by ID
@@ -161,18 +182,22 @@ export class DiscussionService {
 
       ws.onerror = () => {
         this.socket = null;
-        this.updateState({ connectionStatus: "mock_preview" });
+        this.updateState({ connectionStatus: "disconnected" });
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         this.socket = null;
-        this.updateState({ connectionStatus: "mock_preview" });
+        this.updateState({ connectionStatus: "disconnected" });
+        if (event.code === 4404 || event.code === 4401) return;
         if (!this.disposed) {
-          this.reconnectTimer = setTimeout(() => this.initWebSocket(), 1500);
+          this.reconnectTimer = setTimeout(async () => {
+            await this.fetchInitialState();
+            if (!this.disposed) this.initWebSocket();
+          }, 1500);
         }
       };
     } catch {
-      this.updateState({ connectionStatus: "mock_preview" });
+      this.updateState({ connectionStatus: "disconnected" });
     }
   }
 
@@ -181,17 +206,22 @@ export class DiscussionService {
 
     this.timerInterval = setInterval(() => {
       if (!this.serverPhaseEndsAt) return;
-      const nextSec = Math.max(0, Math.floor(this.serverPhaseEndsAt - Date.now() / 1000));
+      const nextSec = Math.max(0, Math.ceil(this.serverPhaseEndsAt - Date.now() / 1000));
 
       this.updateState({
         timerSeconds: nextSec,
         isTimeUp: nextSec === 0,
       });
+      if (nextSec === 0) {
+        if (this.timerInterval) clearInterval(this.timerInterval);
+        this.timerInterval = null;
+        void this.fetchInitialState();
+      }
     }, 1000);
   }
 
   public fastForward() {
-    this.updateState({ timerSeconds: 0, isTimeUp: true });
+    // Phase timing is controlled by the backend; clients only display it.
   }
 
   public getState(): DiscussionState {
@@ -211,44 +241,80 @@ export class DiscussionService {
     this.listeners.forEach((cb) => cb(this.state));
   }
 
-  public async sendMessage(text: string) {
+  public async reinit(roomCode: string) {
+    if (!roomCode || roomCode === this.state.roomCode) return;
+    this.state.roomCode = roomCode.toUpperCase();
+    await this.init();
+  }
+
+  public async sendMessage(text: string): Promise<{ success: boolean; message?: string }> {
     const clean = text.trim();
-    if (!clean) return;
+    if (!clean) return { success: false, message: "Write a message first." };
 
     const session = getPlayerSession(this.state.roomCode);
-    // Send via WebSocket
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      this.socket.send(
-        JSON.stringify({
-          type: "DISCUSSION_MESSAGE",
-          payload: {
-            senderId: session.id,
-            senderName: session.name,
-            avatarUrl: session.avatarUrl,
-            content: clean,
-          },
-        })
-      );
-    } else {
-      // Fallback REST
-      try {
-        const apiUrl = getApiBaseUrl();
-        await fetch(`${apiUrl}/api/v1/game/${this.state.roomCode}/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            senderId: session.id,
-            senderName: session.name,
-            avatarUrl: session.avatarUrl,
-            content: clean,
-            phase: "DISCUSSION",
-            roundNumber: this.state.roundNumber,
-            token: session.token,
-          }),
-        });
-      } catch {
-        // ignore
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/v1/game/${this.state.roomCode}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          senderId: session.id,
+          content: clean,
+          phase: "DISCUSSION",
+          roundNumber: this.state.roundNumber,
+          token: session.token,
+          account_token: session.accountToken,
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) {
+        return { success: false, message: result.detail || result.message || "Message was rejected." };
       }
+      // The API persists then broadcasts. If this client is reconnecting, add
+      // its acknowledged message locally; the id check prevents WS duplicates.
+      const payload = result.message;
+      if (payload?.id && !this.state.messages.some((m) => m.id === payload.id)) {
+        this.updateState({ messages: [...this.state.messages, {
+          id: payload.id,
+          senderId: payload.senderId,
+          senderName: payload.senderName,
+          avatarUrl: payload.avatarUrl || "",
+          timestamp: payload.timestamp || "Now",
+          text: payload.text || payload.content || clean,
+          isArchitect: payload.isArchitect || false,
+          isAI: payload.isAI || false,
+        }] });
+      }
+      return { success: true };
+    } catch {
+      return { success: false, message: "Could not reach the game server. Please retry." };
+    }
+  }
+
+  public async consultArchitect(query: string): Promise<{ success: boolean; answer?: string; message?: string }> {
+    const clean = query.trim();
+    if (!clean) return { success: false, message: "Ask the Architect a question first." };
+    let session = getPlayerSession(this.state.roomCode);
+    if (!session.token && session.accountToken) {
+      session = await ensureRoomSession(this.state.roomCode);
+    }
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/v1/game/${encodeURIComponent(this.state.roomCode)}/architect-chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          player_id: session.id,
+          token: session.token,
+          account_token: session.accountToken,
+          message: clean,
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success || typeof result.answer !== "string") {
+        return { success: false, message: result.detail || "The Architect could not answer. Please try again." };
+      }
+      return { success: true, answer: result.answer };
+    } catch {
+      return { success: false, message: "Could not connect to the Architect service. Check the backend connection and try again." };
     }
   }
 
@@ -260,7 +326,7 @@ export class DiscussionService {
   }
 
   public resetTimer() {
-    this.updateState({ timerSeconds: 120 });
+    // Phase timing is controlled by the backend; clients cannot reset it.
   }
 
   public destroy() {

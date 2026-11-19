@@ -10,7 +10,7 @@ import { RoleActionPanel } from "./RoleActionPanel";
 import { useNightPhase } from "@/hooks/useNightPhase";
 import { useGamePhaseGuard } from "@/hooks/useGamePhaseGuard";
 import { GameRole } from "@/types/roleReveal";
-import { MOCK_PLAYER_PROFILE } from "@/services/dashboard";
+import { getPlayerSession } from "@/services/playerSession";
 import { Radio, RotateCcw, FastForward, Moon, Loader2 } from "lucide-react";
 
 interface NightContainerProps {
@@ -20,9 +20,9 @@ interface NightContainerProps {
 }
 
 export function NightContainer({
-  roomCode = "A7K4D9",
+  roomCode = "",
   initialRole = "traitor",
-  roundNumber = 2,
+  roundNumber = 1,
 }: NightContainerProps) {
   useGamePhaseGuard(roomCode, "NIGHT");
   const router = useRouter();
@@ -33,32 +33,35 @@ export function NightContainer({
     state,
     config,
     targets,
+    allPlayers,
     formattedTimer,
     selectTarget,
     submitAction,
   } = useNightPhase(roomCode, initialRole, roundNumber);
 
-  // Auto-advance to Morning when timer hits 0 or all actions resolved
+  // The game timer is only a display. Navigate when the backend publishes its
+  // phase transition, so refreshes and reconnects remain authoritative.
   useEffect(() => {
-    if ((state.timerSeconds === 0 || state.allActionsResolved) && !navigatedRef.current) {
+    if ((state.serverPhase === "MORNING" || state.serverPhase === "DISCUSSION") && !navigatedRef.current) {
       navigatedRef.current = true;
       setIsAdvancing(true);
-      const t = setTimeout(() => {
-        router.push(`/game/morning?room=${roomCode}&round=${roundNumber}`);
-      }, 1500);
-  return () => clearTimeout(t);
+      router.push(`/game/morning?room=${roomCode}&round=${roundNumber}`);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.timerSeconds, state.allActionsResolved]);
+  }, [state.serverPhase]);
 
-  const livePlayers = targets.map((t) => ({
-        id: t.id,
-        name: t.name,
-        avatarUrl: t.avatarUrl,
-        isAlive: t.isAlive,
-        isHost: false,
-        isCurrentUser: t.id === state.currentUserId,
-      }));
+  const playerRoster = allPlayers && allPlayers.length > 0
+    ? allPlayers
+    : targets;
+
+  const livePlayers = playerRoster.map((t) => ({
+    id: t.id,
+    name: t.name,
+    avatarUrl: t.avatarUrl || "",
+    isAlive: t.isAlive ?? true,
+    isHost: t.isHost ?? false,
+    isCurrentUser: t.id === state.currentUserId,
+  }));
 
   return (
     <div className="min-h-screen bg-background text-text-main flex flex-col selection:bg-purple-muted selection:text-gold-light relative overflow-x-hidden">
@@ -94,7 +97,7 @@ export function NightContainer({
       )}
 
       {/* 2. Top Navigation Bar (Reused Master Header) */}
-      <DashboardHeader activeNav="dashboard" profile={MOCK_PLAYER_PROFILE} />
+      <DashboardHeader activeNav="dashboard" profile={{ name: getPlayerSession().name, email: getPlayerSession().email || "", avatarUrl: getPlayerSession().avatarUrl, roleBadge: "" }} />
 
       {/* 3. Main Master 2-Column Layout */}
       <main className="flex-1 w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-5 z-10 flex flex-col justify-between gap-4">

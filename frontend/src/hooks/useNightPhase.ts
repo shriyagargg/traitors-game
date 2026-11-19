@@ -1,59 +1,59 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NightPhaseService, NIGHT_ROLE_CONFIGS } from "@/services/nightPhaseService";
 import { GameRole } from "@/types/roleReveal";
+import { getPlayerSession } from "@/services/playerSession";
 import { NightPhaseState, NightPlayerTarget, NightRoleConfig } from "@/types/nightPhase";
 
-export function useNightPhase(
-  roomCode = "A7K4D9",
-  initialRole: GameRole = "traitor",
-  roundNumber = 2
-) {
+export function useNightPhase(roomCode = "", initialRole: GameRole = "traitor", roundNumber = 1) {
   const serviceRef = useRef<NightPhaseService | null>(null);
-  if (serviceRef.current === null) {
-    serviceRef.current = new NightPhaseService(roomCode, initialRole, roundNumber);
-  }
-  const service = serviceRef.current;
-
-  const [state, setState] = useState<NightPhaseState>(() => service.getState());
+  const [state, setState] = useState<NightPhaseState>(() => ({
+    roomCode: roomCode.toUpperCase(),
+    roundNumber,
+    timerSeconds: 0,
+    currentRole: initialRole,
+    currentUserId: getPlayerSession(roomCode).id,
+    selectedTargetId: null,
+    isSubmitted: false,
+    submittedTargetName: null,
+    connectionStatus: "disconnected",
+    hasSynced: false,
+    allPlayers: [],
+    targets: [],
+  }));
 
   useEffect(() => {
-    setState({ ...service.getState() });
-
-    const unsubscribe = service.subscribe((newState) => {
-      setState({ ...newState });
-    });
+    const service = new NightPhaseService(roomCode, initialRole, roundNumber);
+    serviceRef.current = service;
+    const unsubscribe = service.subscribe((nextState) => setState({ ...nextState }));
 
     return () => {
       unsubscribe();
       service.destroy();
-      serviceRef.current = null;
+      if (serviceRef.current === service) serviceRef.current = null;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [roomCode, initialRole, roundNumber]);
 
   const config: NightRoleConfig = NIGHT_ROLE_CONFIGS[state.currentRole];
-  const targets: NightPlayerTarget[] = service.getEligibleTargets();
-
+  const targets: NightPlayerTarget[] = state.targets || [];
+  const allPlayers = state.allPlayers || [];
   const formattedTimer = useMemo(() => {
     const mins = Math.floor(state.timerSeconds / 60);
     const secs = state.timerSeconds % 60;
-    const mm = mins < 10 ? `0${mins}` : `${mins}`;
-    const ss = secs < 10 ? `0${secs}` : `${secs}`;
-    return `${mm}:${ss}`;
+    return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   }, [state.timerSeconds]);
 
   return {
     state,
     config,
     targets,
+    allPlayers,
     formattedTimer,
-    selectTarget: (id: string) => service.selectTarget(id),
-    submitAction: () => service.submitAction(),
-    switchRole: (role: GameRole) => service.switchRole(role),
-    resetAction: () => service.resetAction(),
-    resetTimer: () => service.resetTimer(),
-    fastForward: () => service.fastForward(),
+    selectTarget: (id: string) => serviceRef.current?.selectTarget(id),
+    submitAction: () => serviceRef.current
+      ? serviceRef.current.submitAction()
+      : Promise.resolve({ success: false, message: "Night phase is still connecting." }),
+    resetAction: () => serviceRef.current?.resetAction(),
   };
 }

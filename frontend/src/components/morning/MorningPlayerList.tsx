@@ -45,13 +45,13 @@ export function MorningPlayerList({ players }: MorningPlayerListProps) {
                     : "ring-1 ring-white/10"
                 } ${!isAlive ? "grayscale opacity-60" : ""}`}
               >
-                <Image
+                {player.avatarUrl ? <Image
                   src={player.avatarUrl}
                   alt={player.name}
                   fill
                   unoptimized
                   className="object-cover"
-                />
+                /> : <span className="flex h-full w-full items-center justify-center bg-[#2a1d2d] text-sm font-bold text-white">{player.name.slice(0, 2).toUpperCase()}</span>}
               </div>
 
               {/* Player Username & Alive/Eliminated Status */}

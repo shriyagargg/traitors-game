@@ -21,6 +21,8 @@ from app.database.models import (
     VoteModel,
     NightActionModel,
     ChatMessageModel,
+    UserStatsModel,
+    MatchHistoryModel,
 )
 
 
@@ -71,6 +73,13 @@ async def save_game_to_db(session: AsyncSession, engine: GameEngine) -> GameMode
         game.outcome = state.outcome.value
 
     # Sync players
+    current_player_ids = set(state.players.keys())
+    existing_players = await session.execute(select(PlayerModel).where(PlayerModel.game_id == game.id))
+    for db_p in existing_players.scalars().all():
+        if db_p.id not in current_player_ids:
+            await session.delete(db_p)
+    await session.flush()
+
     for p in state.players.values():
         p_stmt = select(PlayerModel).where(
             PlayerModel.game_id == game.id, PlayerModel.id == p.id
@@ -81,6 +90,7 @@ async def save_game_to_db(session: AsyncSession, engine: GameEngine) -> GameMode
             db_p = PlayerModel(
                 id=p.id,
                 game_id=game.id,
+                user_id=getattr(p, "user_id", None),
                 name=p.name,
                 avatar_url=p.avatar_url,
                 role=p.role.value,
@@ -89,11 +99,13 @@ async def save_game_to_db(session: AsyncSession, engine: GameEngine) -> GameMode
                 is_host=p.is_host,
                 is_ready=p.is_ready,
                 is_connected=p.is_connected,
+                is_ai=p.is_ai,
                 slot_index=p.slot_index,
             )
             session.add(db_p)
         else:
             db_p.name = p.name
+            db_p.user_id = getattr(p, "user_id", db_p.user_id)
             db_p.avatar_url = p.avatar_url
             db_p.role = p.role.value
             db_p.status = p.status.value
@@ -101,23 +113,24 @@ async def save_game_to_db(session: AsyncSession, engine: GameEngine) -> GameMode
             db_p.is_host = p.is_host
             db_p.is_ready = p.is_ready
             db_p.is_connected = p.is_connected
+            db_p.is_ai = p.is_ai
             db_p.slot_index = p.slot_index
 
-    # Replace per-round action records from authoritative in-memory state.
-    # The game engine owns replacement semantics for a player's current vote/action.
-    for model in (VoteModel, NightActionModel):
-        rows = await session.execute(select(model).where(model.game_id == game.id))
-        for row in rows.scalars().all():
-            await session.delete(row)
-    await session.flush()
+    # Insert missing records while preserving database uniqueness and timestamps.
+    existing_votes_res = await session.execute(select(VoteModel).where(VoteModel.game_id == game.id))
+    existing_votes = {(v.round_number, v.voter_id) for v in existing_votes_res.scalars().all()}
     for vote in state.votes:
-        session.add(VoteModel(game_id=game.id, round_number=vote.round_number,
-                              voter_id=vote.voter_id, target_id=vote.target_id,
-                              created_at=__import__("time").time()))
+        if (vote.round_number, vote.voter_id) not in existing_votes:
+            session.add(VoteModel(game_id=game.id, round_number=vote.round_number,
+                                  voter_id=vote.voter_id, target_id=vote.target_id,
+                                  created_at=__import__("time").time()))
+    existing_actions_res = await session.execute(select(NightActionModel).where(NightActionModel.game_id == game.id))
+    existing_actions = {(a.round_number, a.actor_id) for a in existing_actions_res.scalars().all()}
     for action in state.night_actions:
-        session.add(NightActionModel(game_id=game.id, round_number=action.round_number,
-                                     actor_id=action.actor_id, action_type=action.action_type.value,
-                                     target_id=action.target_id, created_at=__import__("time").time()))
+        if (action.round_number, action.actor_id) not in existing_actions:
+            session.add(NightActionModel(game_id=game.id, round_number=action.round_number,
+                                         actor_id=action.actor_id, action_type=action.action_type.value,
+                                         target_id=action.target_id, created_at=__import__("time").time()))
     known_messages = await session.execute(select(ChatMessageModel.id).where(ChatMessageModel.game_id == game.id))
     known_ids = set(known_messages.scalars().all())
     for message in state.chat_history:
@@ -127,6 +140,7 @@ async def save_game_to_db(session: AsyncSession, engine: GameEngine) -> GameMode
                 sender_id=message.sender_id, sender_name=message.sender_name,
                 avatar_url=message.avatar_url, content=message.content,
                 is_architect=message.is_architect, is_system=message.is_system,
+                is_ai=message.is_ai,
                 timestamp=message.timestamp))
 
     await session.commit()
@@ -183,7 +197,9 @@ async def load_game_from_db(
             is_host=p.is_host,
             is_ready=p.is_ready,
             is_connected=p.is_connected,
+            is_ai=p.is_ai,
             slot_index=p.slot_index,
+            user_id=p.user_id,
         )
 
     # Reconstruct chat messages
@@ -198,6 +214,7 @@ async def load_game_from_db(
                 timestamp=m.timestamp,
                 is_architect=m.is_architect,
                 is_system=m.is_system,
+                is_ai=m.is_ai,
                 phase=m.phase,
                 round_number=m.round_number,
             )
@@ -222,3 +239,94 @@ async def load_game_from_db(
         engine.state.vote_tally.sort(key=lambda tally: tally.votes_count, reverse=True)
 
     return engine
+
+
+async def load_active_games_from_db(session: AsyncSession) -> list[GameEngine]:
+    """Load unfinished rooms so the authoritative timer resumes after restart."""
+    stmt = (
+        select(GameModel)
+        .where(GameModel.status == "PLAYING")
+        .options(
+            selectinload(GameModel.players),
+            selectinload(GameModel.votes),
+            selectinload(GameModel.night_actions),
+            selectinload(GameModel.chat_messages),
+        )
+    )
+    result = await session.execute(stmt)
+    rooms: list[GameEngine] = []
+    for game in result.scalars().all():
+        # Reuse the same reconstruction path with the current transaction.
+        loaded = await load_game_from_db(session, game.room_code)
+        if loaded:
+            rooms.append(loaded)
+    return rooms
+
+
+async def record_game_stats(session: AsyncSession, engine: GameEngine):
+    """Update UserStatsModel and append MatchHistoryModel for all users when game reaches GAME_OVER."""
+    state = engine.state
+    if state.phase != GamePhase.GAME_OVER:
+        return
+
+    # Check if match history was already recorded for this room to avoid duplicates
+    existing_history = await session.execute(
+        select(MatchHistoryModel.id).where(MatchHistoryModel.room_code == state.room_code).limit(1)
+    )
+    if existing_history.scalars().first():
+        return
+
+    traitor_won = (state.outcome == GameOutcome.TRAITOR_VICTORY)
+    winning_team_str = "Traitor" if traitor_won else "Faithful"
+    duration = int(__import__("time").time() - (state.phase_started_at or __import__("time").time()))
+
+    for p in state.players.values():
+        if not getattr(p, "user_id", None):
+            continue
+
+        user_id = p.user_id
+        is_traitor = (p.role == Role.TRAITOR)
+        is_win = (is_traitor == traitor_won)
+        outcome_str = "Victory" if is_win else "Defeat"
+
+        match_record = MatchHistoryModel(
+            user_id=user_id,
+            room_code=state.room_code,
+            player_role=p.role.value,
+            winning_team=winning_team_str,
+            outcome=outcome_str,
+            player_count=len(state.players),
+            rounds_played=state.round_number,
+            duration_seconds=max(60, duration),
+        )
+        session.add(match_record)
+
+        stats_res = await session.execute(select(UserStatsModel).where(UserStatsModel.user_id == user_id))
+        stats = stats_res.scalars().first()
+        if not stats:
+            stats = UserStatsModel(user_id=user_id)
+            session.add(stats)
+
+        stats.games_played += 1
+        if is_win:
+            stats.wins += 1
+            stats.current_streak += 1
+            stats.best_streak = max(stats.best_streak, stats.current_streak)
+            stats.reputation += 25
+        else:
+            stats.losses += 1
+            stats.current_streak = 0
+            stats.reputation = max(500, stats.reputation - 10)
+
+        stats.win_rate = round((stats.wins / stats.games_played) * 100, 1)
+
+        if p.role == Role.TRAITOR:
+            stats.traitor_count += 1
+        elif p.role == Role.DOCTOR:
+            stats.doctor_count += 1
+        elif p.role == Role.DETECTIVE:
+            stats.detective_count += 1
+        else:
+            stats.faithful_count += 1
+
+    await session.commit()

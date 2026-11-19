@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Gamepad2,
@@ -21,7 +21,7 @@ import {
   createRoom,
   RoomOperationResult,
 } from "@/services/rooms";
-import { getPlayerSession, setPlayerSession } from "@/services/playerSession";
+import { getPlayerSession } from "@/services/playerSession";
 
 interface CreateGameFormProps {
   capacity: PlayerCapacity;
@@ -30,19 +30,14 @@ interface CreateGameFormProps {
 }
 
 export function CreateGameForm({
-  capacity,
+  capacity: propCapacity,
   onCapacityChange,
   onRoomCreated,
 }: CreateGameFormProps) {
   const router = useRouter();
 
   // Form State
-  const [hostName, setHostName] = useState(() => {
-    if (typeof window !== "undefined") {
-      return getPlayerSession().name;
-    }
-    return "Host";
-  });
+  const [selectedCapacity, setSelectedCapacity] = useState<PlayerCapacity>(propCapacity || 7);
   const [roomName, setRoomName] = useState("Council Chamber");
   const [nightDuration, setNightDuration] = useState(30);
   const [discussionDuration, setDiscussionDuration] = useState(120);
@@ -54,25 +49,41 @@ export function CreateGameForm({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [result, setResult] = useState<RoomOperationResult | null>(null);
 
+  // Sync prop changes if parent updates
+  useEffect(() => {
+    if (propCapacity) {
+      setSelectedCapacity(propCapacity);
+    }
+  }, [propCapacity]);
+
+  const handleCapacitySelect = (cap: PlayerCapacity) => {
+    setSelectedCapacity(cap);
+    onCapacityChange?.(cap);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setResult(null);
+
+    const session = getPlayerSession();
+    if (!session.accountToken) {
+      router.push(`/auth/register?returnTo=${encodeURIComponent("/lobby/create")}`);
+      return;
+    }
 
     if (!roomName.trim()) {
       setErrorMessage("Please enter a room name.");
       return;
     }
 
-    if (hostName.trim()) {
-      setPlayerSession(hostName.trim());
-    }
+    const effectiveCapacity = selectedCapacity || propCapacity || 7;
 
     setLoading(true);
     try {
       const config: RoomConfig = {
         roomName: roomName.trim(),
-        playerCapacity: capacity,
+        playerCapacity: effectiveCapacity,
         nightDuration,
         discussionDuration,
         votingDuration,
@@ -87,11 +98,11 @@ export function CreateGameForm({
         }
         setTimeout(() => {
           router.push(
-            `/lobby?code=${res.roomCode || "A7K4D9"}&name=${encodeURIComponent(
+            `/lobby?code=${res.roomCode}&name=${encodeURIComponent(
               config.roomName
             )}&capacity=${config.playerCapacity}&private=${config.isPrivate}`
           );
-        }, 700);
+        }, 0);
       } else {
         setErrorMessage(res.message);
       }
@@ -103,17 +114,17 @@ export function CreateGameForm({
   };
 
   return (
-    <div className="w-full rounded-3xl bg-[#120A14]/85 border border-gold-antique/30 backdrop-blur-xl p-6 sm:p-7 shadow-[0_4px_30px_rgba(20,9,28,0.5)]">
+    <div className="w-full rounded-2xl bg-[#19151d] border border-white/10 p-5 sm:p-6">
       {/* 1. Header */}
       <div className="flex items-center gap-3.5 mb-5">
-        <div className="w-10 h-10 rounded-xl bg-[#1A0E1C] border border-gold-antique/30 flex items-center justify-center shrink-0">
-          <Gamepad2 className="w-5 h-5 text-gold-antique" />
+        <div className="w-10 h-10 rounded-xl bg-[#302637] border border-white/5 flex items-center justify-center shrink-0">
+          <Gamepad2 className="w-5 h-5 text-[#c4a6d2]" />
         </div>
         <div className="text-left">
-          <h2 className="font-cormorant text-2xl sm:text-3xl font-normal text-text-main tracking-wide">
+          <h2 className="text-xl font-semibold text-white tracking-tight">
             Create a New Game
           </h2>
-          <p className="text-xs font-sans text-text-secondary/80">
+          <p className="text-sm text-[#b9b0bd]">
             Set up your room, invite players and let The Architect run the game.
           </p>
         </div>
@@ -121,12 +132,12 @@ export function CreateGameForm({
 
       {/* 2. Notifications & Status Banners */}
       {errorMessage && (
-        <div className="mb-4 rounded-xl border border-rose-500/40 bg-rose-950/30 px-4 py-2.5 text-xs font-sans text-rose-200">
+        <div className="mb-4 rounded-lg border border-rose-300/20 bg-rose-950/20 px-4 py-2.5 text-xs font-sans text-rose-200">
           {errorMessage}
         </div>
       )}
       {result && result.success && (
-        <div className="mb-4 rounded-xl border border-emerald-500/40 bg-emerald-950/30 px-4 py-3 text-xs font-sans text-emerald-200 flex flex-col gap-1">
+        <div className="mb-4 rounded-lg border border-emerald-300/20 bg-emerald-950/20 px-4 py-3 text-xs font-sans text-emerald-200 flex flex-col gap-1">
           <p className="font-semibold text-emerald-300">
             ✓ Chamber Activated: Code [{result.roomCode}]
           </p>
@@ -136,30 +147,13 @@ export function CreateGameForm({
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Field 0: Your Name (Host) */}
-        <div className="text-left">
-          <label className="block text-xs font-sans text-text-secondary mb-1.5 font-medium">
-            Your Host Name
-          </label>
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#170C1B]/90 border border-gold-antique/25 focus-within:border-gold-antique/70 transition-all">
-            <Users className="w-4 h-4 text-gold-antique shrink-0" />
-            <input
-              type="text"
-              value={hostName}
-              onChange={(e) => setHostName(e.target.value)}
-              maxLength={24}
-              required
-              className="w-full bg-transparent text-sm font-sans text-text-main placeholder:text-text-secondary/50 focus:outline-none"
-            />
-          </div>
-        </div>
-
         {/* Field A: Room Name */}
         <div className="text-left">
           <label className="block text-xs font-sans text-text-secondary mb-1.5 font-medium">
             Room Name
           </label>
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#170C1B]/90 border border-gold-antique/25 focus-within:border-gold-antique/70 focus-within:shadow-[0_0_15px_rgba(212,175,55,0.15)] transition-all">
-            <CrownIcon className="w-4 h-4 text-gold-antique shrink-0" />
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#100d13] border border-white/10 focus-within:border-[#a78ab2] transition-all">
+            <CrownIcon className="w-4 h-4 text-[#c4a6d2] shrink-0" />
             <input
               type="text"
               value={roomName}
@@ -178,22 +172,26 @@ export function CreateGameForm({
           </label>
           <div className="grid grid-cols-3 gap-3">
             {([6, 7, 8] as PlayerCapacity[]).map((cap) => {
-              const isSelected = capacity === cap;
+              const isSelected = selectedCapacity === cap;
 
               return (
                 <button
                   key={cap}
                   type="button"
-                  onClick={() => onCapacityChange(cap)}
-                  className={`py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all duration-200 border ${
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleCapacitySelect(cap);
+                  }}
+                  className={`py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all duration-200 border cursor-pointer ${
                     isSelected
-                      ? "bg-[#281023] border-gold-antique text-gold-light shadow-[0_0_15px_rgba(212,175,55,0.2)] font-semibold"
-                      : "bg-[#170C1B]/70 border-gold-antique/20 hover:border-gold-antique/50 text-text-secondary hover:text-text-main"
+                      ? "bg-[#392c40] border-[#9b7ba6] text-white font-semibold ring-1 ring-[#9b7ba6]"
+                      : "bg-[#100d13] border-white/10 hover:border-white/25 text-[#b9b0bd] hover:text-white"
                   }`}
                 >
                   <Users
                     className={`w-4 h-4 ${
-                      isSelected ? "text-gold-antique" : "text-text-secondary"
+                      isSelected ? "text-[#c4a6d2]" : "text-text-secondary"
                     }`}
                   />
                   <span className="text-xs font-sans">{cap} Players</span>
@@ -210,9 +208,9 @@ export function CreateGameForm({
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             {/* 1. Night Phase */}
-            <div className="relative rounded-xl bg-[#170C1B]/90 border border-gold-antique/25 px-3 py-2.5 flex items-center justify-between">
+            <div className="relative rounded-xl bg-[#100d13] border border-white/10 px-3 py-2.5 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Moon className="w-4 h-4 text-gold-antique/80" />
+                <Moon className="w-4 h-4 text-[#c4a6d2]/80" />
                 <div className="flex flex-col text-left">
                   <span className="text-[10px] text-text-secondary/70">Night Phase</span>
                   <select
@@ -232,9 +230,9 @@ export function CreateGameForm({
             </div>
 
             {/* 2. Discussion */}
-            <div className="relative rounded-xl bg-[#170C1B]/90 border border-gold-antique/25 px-3 py-2.5 flex items-center justify-between">
+            <div className="relative rounded-xl bg-[#100d13] border border-white/10 px-3 py-2.5 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-gold-antique/80" />
+                <MessageSquare className="w-4 h-4 text-[#c4a6d2]/80" />
                 <div className="flex flex-col text-left">
                   <span className="text-[10px] text-text-secondary/70">Discussion</span>
                   <select
@@ -254,9 +252,9 @@ export function CreateGameForm({
             </div>
 
             {/* 3. Voting */}
-            <div className="relative rounded-xl bg-[#170C1B]/90 border border-gold-antique/25 px-3 py-2.5 flex items-center justify-between">
+            <div className="relative rounded-xl bg-[#100d13] border border-white/10 px-3 py-2.5 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Scale className="w-4 h-4 text-gold-antique/80" />
+                <Scale className="w-4 h-4 text-[#c4a6d2]/80" />
                 <div className="flex flex-col text-left">
                   <span className="text-[10px] text-text-secondary/70">Voting</span>
                   <select
@@ -284,9 +282,13 @@ export function CreateGameForm({
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Public Option */}
-            <label
-              onClick={() => setIsPrivate(false)}
-              className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition ${
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                setIsPrivate(false);
+              }}
+              className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition text-left ${
                 !isPrivate
                   ? "bg-[#281023] border-gold-antique text-text-main shadow-sm"
                   : "bg-[#170C1B]/60 border-gold-antique/20 text-text-secondary hover:border-gold-antique/40"
@@ -301,19 +303,23 @@ export function CreateGameForm({
                   {!isPrivate && <div className="w-2 h-2 rounded-full bg-gold-antique" />}
                 </div>
               </div>
-              <Globe className="w-4 h-4 text-gold-antique shrink-0 mt-0.5" />
+              <Globe className="w-4 h-4 text-[#c4a6d2] shrink-0 mt-0.5" />
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-text-main">Public Room</span>
                 <span className="text-[11px] text-text-secondary">
                   Anyone with the room code can join
                 </span>
               </div>
-            </label>
+            </button>
 
             {/* Private Option */}
-            <label
-              onClick={() => setIsPrivate(true)}
-              className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition ${
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                setIsPrivate(true);
+              }}
+              className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition text-left ${
                 isPrivate
                   ? "bg-[#281023] border-gold-antique text-text-main shadow-sm"
                   : "bg-[#170C1B]/60 border-gold-antique/20 text-text-secondary hover:border-gold-antique/40"
@@ -328,12 +334,12 @@ export function CreateGameForm({
                   {isPrivate && <div className="w-2 h-2 rounded-full bg-gold-antique" />}
                 </div>
               </div>
-              <Lock className="w-4 h-4 text-gold-antique shrink-0 mt-0.5" />
+              <Lock className="w-4 h-4 text-[#c4a6d2] shrink-0 mt-0.5" />
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-text-main">Private Room</span>
                 <span className="text-[11px] text-text-secondary">Invite only</span>
               </div>
-            </label>
+            </button>
           </div>
         </div>
 
@@ -341,12 +347,12 @@ export function CreateGameForm({
         <button
           type="submit"
           disabled={loading}
-          className="w-full mt-4 py-3.5 px-6 rounded-xl bg-gradient-to-r from-gold-light via-[#F3DEAA] to-gold-antique hover:from-gold-antique hover:to-gold-light text-background font-semibold text-sm sm:text-base flex items-center justify-center gap-2.5 transition-all duration-300 shadow-[0_0_25px_rgba(242,216,154,0.35)] hover:shadow-[0_0_30px_rgba(212,175,55,0.45)] hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60"
+          className="w-full mt-4 py-3.5 px-6 rounded-xl bg-[#e1cbd4] hover:bg-white text-[#211c25] font-semibold text-sm sm:text-base flex items-center justify-center gap-2.5 transition-all duration-300 shadow-none active:scale-[0.99] disabled:opacity-60"
         >
           {loading ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin text-background" />
-              <span>Establishing Room...</span>
+              <span>Creating room…</span>
             </>
           ) : (
             <>

@@ -9,12 +9,12 @@ interface RoomLobbyPageProps {
 
 export default function RoomLobbyPage({ params }: RoomLobbyPageProps) {
   const resolvedParams = use(params);
-  const code = (resolvedParams.code || "A7K4D9").toUpperCase();
+  const code = (resolvedParams.code || "").toUpperCase();
 
   return (
     <LobbyContainer
       initialRoomCode={code}
-      initialRoomName="Somya's Game Room"
+      initialRoomName="Council Chamber"
       initialCapacity={8}
       initialIsPrivate={false}
     />

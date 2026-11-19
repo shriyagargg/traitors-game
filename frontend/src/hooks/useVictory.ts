@@ -5,7 +5,7 @@ import { VictoryService } from "@/services/victoryService";
 import { VictoryState, VictoryOutcome } from "@/types/victory";
 
 export function useVictory(
-  roomCode = "A7K4D9",
+  roomCode = "",
   initialOutcome: VictoryOutcome = "FAITHFUL_VICTORY"
 ) {
   const serviceRef = useRef<VictoryService | null>(null);

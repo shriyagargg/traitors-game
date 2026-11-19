@@ -5,17 +5,18 @@ import Link from "next/link";
 import { ArrowLeft, Settings, Volume2, Shield, Bell } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
-import { MOCK_PLAYER_PROFILE } from "@/services/dashboard";
+import { useDashboardData } from "@/hooks/useDashboardData";
 
 export default function SettingsPage() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const { data, profile } = useDashboardData();
   const [soundEffects, setSoundEffects] = useState(true);
   const [notifications, setNotifications] = useState(true);
 
   return (
     <div className="min-h-screen bg-background text-text-main flex flex-col relative overflow-x-hidden">
       <DashboardHeader
-        profile={MOCK_PLAYER_PROFILE}
+        profile={profile}
         onToggleMobileSidebar={() => setMobileSidebarOpen(!mobileSidebarOpen)}
       />
 

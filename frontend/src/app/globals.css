@@ -1,15 +1,15 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;800;900&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --background: #09060D;
-  --foreground: #F5EEDC;
-  --font-cinzel: 'Cinzel', Georgia, serif;
-  --font-cormorant: 'Cormorant Garamond', Garamond, Georgia, serif;
-  --font-inter: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --background: #100d13;
+  --foreground: #f5f1f7;
+  --font-cinzel: 'Manrope', sans-serif;
+  --font-cormorant: 'Manrope', sans-serif;
+  --font-inter: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 body {
@@ -17,7 +17,7 @@ body {
   background: var(--background);
   font-family: var(--font-inter);
   overflow-x: hidden;
-  background-color: #09060D;
+  background-color: #100d13;
 }
 
 /* Custom Atmospheric Scrollbars */
@@ -74,3 +74,12 @@ body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+
+
+/* Consistent, quiet surfaces across app flows. */
+:root { color-scheme: dark; }
+body { background-image: radial-gradient(ellipse at 50% -30%, #2a1d2d 0%, #100d13 58%); }
+button, a, input, select { -webkit-tap-highlight-color: transparent; }
+button, a { transition: color .16s ease, background-color .16s ease, border-color .16s ease, transform .16s ease; }
+:focus-visible { outline: 2px solid #c4a6d2; outline-offset: 3px; }
+::selection { background: #6d4b76; color: #fff; }

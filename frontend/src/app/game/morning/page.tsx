@@ -6,8 +6,8 @@ import { MorningContainer } from "@/components/morning/MorningContainer";
 
 function MorningContent() {
   const searchParams = useSearchParams();
-  const roomCode = searchParams.get("room") || searchParams.get("code") || "A7K4D9";
-  const roundNumber = Number(searchParams.get("round")) || 2;
+  const roomCode = searchParams.get("room") || searchParams.get("code") || "";
+  const roundNumber = Number(searchParams.get("round")) || 1;
 
   return <MorningContainer roomCode={roomCode} roundNumber={roundNumber} />;
 }

@@ -15,6 +15,6 @@ export interface MorningAnnouncementState {
   eliminatedPlayer: MorningPlayer | null;
   players: MorningPlayer[];
   roleRevealPermitted: boolean;
-  connectionStatus: "connected" | "mock_preview";
+  connectionStatus: "connected" | "disconnected";
   dynamicAnnouncement?: string | null;
 }

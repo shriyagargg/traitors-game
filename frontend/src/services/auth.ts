@@ -99,13 +99,12 @@ export function evaluatePasswordStrength(password: string): PasswordEvaluation {
 
 /**
  * Client authentication adapter
- * Note: Connects to backend API when available; provides structured mock fallback during UI phase.
+ * Authentication is provided exclusively by the configured backend API.
  */
 export async function loginUser(credentials: LoginCredentials): Promise<AuthResponse> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
   try {
-    const res = await fetch(`${apiUrl}/api/v1/auth/login`, {
+    const { getApiBaseUrl } = await import("./rooms");
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(credentials),
@@ -120,44 +119,17 @@ export async function loginUser(credentials: LoginCredentials): Promise<AuthResp
         user: data.user,
       };
     }
+    const error = await res.json().catch(() => ({}));
+    return { success: false, message: error.detail || "Email or password is incorrect." };
   } catch {
-    // Backend endpoint not yet active (Phase 2)
+    return { success: false, message: "Could not connect to the authentication service." };
   }
-
-  // Graceful client simulation with artificial delay
-  await new Promise((resolve) => setTimeout(resolve, 800));
-
-  if (!validateEmail(credentials.email)) {
-    return {
-      success: false,
-      message: "Please enter a valid email address.",
-    };
-  }
-
-  if (credentials.password.length < 6) {
-    return {
-      success: false,
-      message: "Password must be at least 6 characters.",
-    };
-  }
-
-  return {
-    success: true,
-    message: "Council credentials accepted (Simulated session for interface preview).",
-    token: "mock-jwt-session-token",
-    user: {
-      id: "usr_mock_123",
-      username: credentials.email.split("@")[0],
-      email: credentials.email,
-    },
-  };
 }
 
 export async function registerUser(credentials: RegisterCredentials): Promise<AuthResponse> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
   try {
-    const res = await fetch(`${apiUrl}/api/v1/auth/register`, {
+    const { getApiBaseUrl } = await import("./rooms");
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(credentials),
@@ -167,61 +139,19 @@ export async function registerUser(credentials: RegisterCredentials): Promise<Au
       const data = await res.json();
       return {
         success: true,
-        message: "Initiate registered successfully",
+        message: "Account created.",
+        token: data.access_token,
         user: data.user,
       };
     }
+    const error = await res.json().catch(() => ({}));
+    return { success: false, message: error.detail || "Unable to create account." };
   } catch {
-    // Backend endpoint not yet active (Phase 2)
+    return { success: false, message: "Could not connect to the authentication service." };
   }
-
-  await new Promise((resolve) => setTimeout(resolve, 850));
-
-  if (!credentials.username || credentials.username.trim().length < 3) {
-    return {
-      success: false,
-      message: "Username must be at least 3 characters.",
-    };
-  }
-
-  if (!validateEmail(credentials.email)) {
-    return {
-      success: false,
-      message: "Please enter a valid email address.",
-    };
-  }
-
-  if (credentials.password !== credentials.confirmPassword) {
-    return {
-      success: false,
-      message: "Passwords do not match.",
-    };
-  }
-
-  return {
-    success: true,
-    message: "New initiate registered (Simulated session for interface preview).",
-    token: "mock-jwt-register-token",
-    user: {
-      id: "usr_mock_456",
-      username: credentials.username.trim(),
-      email: credentials.email,
-    },
-  };
 }
 
 export async function requestPasswordReset(email: string): Promise<AuthResponse> {
-  await new Promise((resolve) => setTimeout(resolve, 700));
-
-  if (!validateEmail(email)) {
-    return {
-      success: false,
-      message: "Please provide a valid email address.",
-    };
-  }
-
-  return {
-    success: true,
-    message: `Password reset instructions have been dispatched to ${email}.`,
-  };
+  if (!validateEmail(email)) return { success: false, message: "Please provide a valid email address." };
+  return { success: false, message: "Password reset is unavailable until an email delivery provider is configured." };
 }

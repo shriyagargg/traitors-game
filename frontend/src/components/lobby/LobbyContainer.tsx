@@ -11,9 +11,9 @@ import { LobbyChatBar } from "./LobbyChatBar";
 import { StartGameAction } from "./StartGameAction";
 import { useLobby } from "@/hooks/useLobby";
 import { useGamePhaseGuard } from "@/hooks/useGamePhaseGuard";
-import { MOCK_PLAYER_PROFILE } from "@/services/dashboard";
+import { getPlayerSession } from "@/services/playerSession";
 import { PlayerCapacity } from "@/services/rooms";
-import { Radio, Sparkles } from "lucide-react";
+import { Radio, Sparkles, AlertCircle, X } from "lucide-react";
 
 interface LobbyContainerProps {
   initialRoomCode?: string;
@@ -23,8 +23,8 @@ interface LobbyContainerProps {
 }
 
 export function LobbyContainer({
-  initialRoomCode = "A7K4D9",
-  initialRoomName = "Somya's Game Room",
+  initialRoomCode = "",
+  initialRoomName = "Council Chamber",
   initialCapacity = 8,
   initialIsPrivate = false,
 }: LobbyContainerProps) {
@@ -37,10 +37,11 @@ export function LobbyContainer({
     currentUser,
     toggleReady,
     sendChatMessage,
-    updateSettings,
-    updateRoomName,
     validateGameStart,
     startGame,
+    leaveLobby,
+    addTestPlayers,
+    removeTestPlayer,
   } = useLobby(
     initialRoomCode,
     initialRoomName,
@@ -50,6 +51,8 @@ export function LobbyContainer({
 
   const [gameStartedNotification, setGameStartedNotification] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isLeaving, setIsLeaving] = useState(false);
+  const [isAddingTestPlayers, setIsAddingTestPlayers] = useState(false);
 
   // Synchronized navigation: whenever server status turns to "playing", ALL players enter the game together!
   React.useEffect(() => {
@@ -70,8 +73,35 @@ export function LobbyContainer({
     }
   };
 
+  const handleAddTestPlayers = async () => {
+    setIsAddingTestPlayers(true);
+    const result = await addTestPlayers();
+    setIsAddingTestPlayers(false);
+    if (!result.success) setErrorMessage(result.message);
+  };
+
+  const handleLeaveLobby = async () => {
+    if (isLeaving) return;
+    setIsLeaving(true);
+    try {
+      await leaveLobby();
+      if (typeof window !== "undefined") {
+        try {
+          const rooms = JSON.parse(localStorage.getItem("agy_room_sessions") || "{}");
+          delete rooms[initialRoomCode.toUpperCase()];
+          localStorage.setItem("agy_room_sessions", JSON.stringify(rooms));
+        } catch {}
+      }
+      router.replace("/dashboard");
+    } catch {
+      router.replace("/dashboard");
+    }
+  };
+
+  const currentSession = getPlayerSession(initialRoomCode);
+
   return (
-    <div className="min-h-screen bg-background text-text-main flex flex-col selection:bg-purple-muted selection:text-gold-light relative overflow-x-hidden">
+    <div className="min-h-screen bg-[#100d13] text-[#f5f1f7] flex flex-col selection:bg-purple-900/40 selection:text-gold-light">
       {/* 1. Cinematic Background Vignette & Atmospheric Glows */}
       <div
         className="pointer-events-none fixed inset-0 z-0 opacity-70"
@@ -90,14 +120,38 @@ export function LobbyContainer({
         aria-hidden="true"
       />
 
-      {/* 2. Top Navigation Bar (Reusing Master Dashboard Header) */}
-      <DashboardHeader activeNav="create" profile={MOCK_PLAYER_PROFILE} />
+      {/* 2. Top Navigation Bar */}
+      <DashboardHeader
+        activeNav="create"
+        profile={{
+          name: currentSession.name || currentUser?.name || "Player",
+          email: currentSession.email || "",
+          avatarUrl: currentSession.avatarUrl || currentUser?.avatarUrl || "",
+          roleBadge: isHost ? "Chamber Host" : "Council Initiate",
+        }}
+      />
 
       {/* 3. Main Master Container */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 z-10 flex flex-col justify-between gap-5">
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-7 z-10 flex flex-col gap-5">
+        {/* Error Alert Banner */}
+        {errorMessage && (
+          <div className="w-full rounded-xl border border-rose-500/30 bg-rose-950/40 p-4 text-sm text-rose-200 flex items-center justify-between gap-3 shadow-lg animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="text-rose-400 hover:text-white transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* A. Top Header Area */}
         <div className="space-y-4">
-          <LobbyHeader />
+          <LobbyHeader onLeaveLobby={handleLeaveLobby} />
 
           {/* B. Room Information Horizontal Bar */}
           <RoomInfoBar
@@ -107,27 +161,35 @@ export function LobbyContainer({
             maxCapacity={state.settings.playerCapacity}
             isPrivate={state.isPrivate}
             isHost={isHost}
-            onUpdateRoomName={updateRoomName}
+            onLeaveLobby={handleLeaveLobby}
+            isLeaving={isLeaving}
+            onAddTestPlayers={handleAddTestPlayers}
+            isAddingTestPlayers={isAddingTestPlayers}
           />
         </div>
 
         {/* C. Middle Chamber: Player Slots (Left 8 cols) & Settings Panel (Right 4 cols) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch my-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
           {/* Left Column: Player Slots Grid */}
-          <div className="lg:col-span-8 flex flex-col justify-center">
-            <div className="flex items-center justify-between mb-2.5 px-1">
-              <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+          <div className="lg:col-span-8 flex flex-col">
+            <div className="flex items-center justify-between mb-3 px-1">
+              <span className="text-xs font-semibold text-[#b9b0bd] uppercase tracking-wider">
                 Council Chamber Slots ({state.players.length}/{state.settings.playerCapacity})
               </span>
-              <span className="text-[11px] text-gold-antique/70">
-                Only connected players appear in this chamber
+              <span className="text-[11px] text-[#b99ca5]/70">
+                Connected players in real time
               </span>
             </div>
             <PlayerSlotsRow
               players={state.players}
               capacity={state.settings.playerCapacity}
               onToggleReady={toggleReady}
-              currentUserId={currentUser?.id}
+              currentUserId={currentUser?.id || currentSession.id}
+              isHost={isHost}
+              onRemoveTestPlayer={async (playerId) => {
+                const result = await removeTestPlayer(playerId);
+                if (!result.success) setErrorMessage(result.message);
+              }}
             />
           </div>
 
@@ -135,8 +197,6 @@ export function LobbyContainer({
           <div className="lg:col-span-4 flex flex-col">
             <LobbySettingsPanel
               settings={state.settings}
-              isHost={isHost}
-              onUpdateSettings={updateSettings}
             />
           </div>
         </div>
@@ -161,16 +221,24 @@ export function LobbyContainer({
           </div>
         </div>
 
-        {/* E. Live connection state */}
-        <div className="w-full flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gold-antique/10 text-[11px] font-sans text-text-secondary/70">
+        {/* E. Live connection status indicator */}
+        <div className="w-full flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-white/10 text-xs text-[#a89fac]">
           <div className="flex items-center gap-2">
-            <Radio className="w-3.5 h-3.5 text-gold-antique animate-pulse" />
-            <span className="text-gold-light/80">Connection Status:</span>
-            <span className="bg-[#1A0E1C] px-2 py-0.5 rounded border border-gold-antique/25 font-mono text-[10px] text-text-main">
-              {state.connectionStatus === "connected" ? "Live WebSocket" : state.connectionStatus}
+            <Radio
+              className={`w-3.5 h-3.5 ${
+                state.connectionStatus === "connected"
+                  ? "text-emerald-400 animate-pulse"
+                  : "text-amber-400"
+              }`}
+            />
+            <span className="text-[#b9b0bd]/80">Multiplayer Sync:</span>
+            <span className="bg-[#19151d] px-2 py-0.5 rounded border border-white/10 font-mono text-[10px] text-white">
+              {state.connectionStatus === "connected" ? "Live WebSocket Connected" : "Connecting..."}
             </span>
           </div>
-
+          <div className="text-[11px] text-[#b9b0bd]/60">
+            {isHost ? "You are the Host. Start game when all players are Ready." : "Waiting for Host to start the game."}
+          </div>
         </div>
       </main>
 
@@ -182,13 +250,13 @@ export function LobbyContainer({
           </div>
 
           <h2 className="font-cinzel text-3xl sm:text-4xl font-bold tracking-[0.2em] text-gold-light mb-2">
-            CHAMBER SEALED
+            GAME STARTING
           </h2>
           <p className="font-cormorant text-xl text-[#F5EEDC] italic max-w-md mb-4">
-            The Architect is assigning secret roles according to CSP constraints...
+            The Council is being summoned.
           </p>
           <span className="text-xs font-mono text-gold-antique/80">
-            Proceeding to Role Reveal Chamber...
+            Revealing secret roles…
           </span>
         </div>
       )}

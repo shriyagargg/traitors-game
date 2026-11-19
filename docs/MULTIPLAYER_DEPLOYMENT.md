@@ -32,13 +32,24 @@ These values are public endpoint URLs, not secrets. Do not put database credenti
 
 ## Public deployment
 
-1. Provision a managed PostgreSQL database with persistent backups.
-2. Deploy `backend/` to an HTTPS-capable Python host. Use the `backend` directory as the service root and run `uvicorn app.main:app --app-dir . --host 0.0.0.0 --port $PORT`.
-3. Set the backend variables above in the hosting provider. Ensure the proxy supports WebSocket upgrades and forwards WSS traffic.
-4. Deploy `frontend/` to Vercel or another Next.js host. Set the API and WSS origins at build time.
-5. Set the exact deployed frontend origin in `BACKEND_CORS_ORIGINS`; verify `/api/v1/health`, create/join, and a WebSocket connection on the public domains.
+This repository includes `render.yaml` for a persistent FastAPI service and PostgreSQL database. The API should remain a single long-running process because the timer coordinator, phase locks, and room WebSocket manager currently live in process memory. Vercel supports WebSocket functions, but this backend is not yet safe to spread across independently invoked function instances.
 
-The current connection manager and timer coordinator are process-local. Run one backend process/worker per deployment for correct room broadcasts and timers. Horizontal backend scaling requires a shared WebSocket pub/sub adapter and distributed timer/phase lock before adding replicas. Public deployment credentials and DNS are not present in this repository, so no deployment has been performed.
+1. Push the repository to the GitHub account you will connect to both hosting providers.
+2. In Render, create a Blueprint from the repository and review the paid web-service and Postgres plans in `render.yaml`. Set `BACKEND_CORS_ORIGINS` to the exact Vercel origin (for example, `https://your-project.vercel.app`). Set `GEMINI_API_KEY` if you want live Architect AI responses.
+3. Wait for Render to deploy. Verify `https://<render-service>/api/v1/health` returns healthy. Copy the service's HTTPS origin and its matching `wss://` origin.
+4. In Vercel, import the same repository and set the project Root Directory to `frontend`. Add `NEXT_PUBLIC_API_URL=https://<render-service>` and `NEXT_PUBLIC_WS_URL=wss://<render-service>` before deploying.
+5. Verify signup/login, create/join, WebSocket room sync, a chat message, a vote, and phase transitions using two separate browsers on the production domains.
+
+The Render blueprint provisions paid resources; review current plan pricing before confirming it. Hosting credentials and DNS are not present in this repository, so the services still need to be linked and created in the provider dashboards.
+
+## Game rules and phase flow
+
+- A host creates a room with capacity 4–8 and starts only when at least four players are ready. The lobby UI offers 6–8 seats; local test players occupy seats but do not count as registered accounts or public user statistics.
+- Roles are randomly assigned at start: 1 Traitor for 4–5 players, 2 for 6 or more, plus a Doctor and Detective when those slots are available; remaining players are Faithful.
+- The timed phases run Role Reveal → Night → Morning → Discussion → Voting → Results. Unless the game ends, Results advances to the next Night and round. The backend stores each phase's end timestamp and performs timed transitions.
+- At Night, living Traitors choose an elimination, the Doctor chooses a player to protect, and the Detective investigates a player. A protected target survives; otherwise the chosen target is murdered. Each role's action is validated by the server.
+- During Discussion, living players can chat. During Voting, each eligible living player may cast one confidential vote for another living player. The player with the most valid votes is banished; a tie means no one is banished.
+- Faithful win when no Traitors remain. Traitors win when they equal or outnumber the living Faithful, or when at most two players remain with a Traitor alive. The final outcome is shown after results.
 
 ## Current API and real-time contract
 

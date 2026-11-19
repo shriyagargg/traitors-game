@@ -8,7 +8,7 @@ import { GameRole } from "@/types/roleReveal";
 function RoleRevealContent() {
   const searchParams = useSearchParams();
 
-  const code = searchParams.get("code") || searchParams.get("room") || "A7K4D9";
+  const code = searchParams.get("code") || searchParams.get("room") || "";
   const roleParam = searchParams.get("role") as GameRole | null;
   const initialRole: GameRole =
     roleParam === "traitor" ||
@@ -16,7 +16,7 @@ function RoleRevealContent() {
     roleParam === "detective" ||
     roleParam === "faithful"
       ? roleParam
-      : "traitor";
+      : "faithful";
 
   return (
     <RoleRevealContainer initialRoomCode={code} initialRole={initialRole} />

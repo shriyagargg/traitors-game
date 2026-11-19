@@ -10,7 +10,7 @@ import {
   LobbyRoomState,
 } from "@/types/lobby";
 import { PlayerCapacity, getApiBaseUrl, getWsBaseUrl } from "./rooms";
-import { getPlayerSession } from "./playerSession";
+import { getPlayerSession, ensureRoomSession } from "./playerSession";
 
 export class LobbyService {
   private state: LobbyRoomState;
@@ -20,15 +20,15 @@ export class LobbyService {
   private roomCode: string;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private manuallyClosed = false;
+  private authRejected = false;
 
   constructor(
-    roomCode = "A7K4D9",
+    roomCode = "",
     initialRoomName = "Council Chamber",
     initialCapacity: PlayerCapacity = 8,
     isPrivate = false
   ) {
     this.roomCode = roomCode.toUpperCase();
-    const session = getPlayerSession(this.roomCode);
 
     this.state = {
       roomCode: this.roomCode,
@@ -49,7 +49,16 @@ export class LobbyService {
       connectionStatus: "connecting",
     };
 
-    this.fetchInitialState();
+    void this.init();
+  }
+
+  private async init() {
+    if (typeof window === "undefined") return;
+    let session = getPlayerSession(this.roomCode);
+    if (!session.token && session.accountToken) {
+      session = await ensureRoomSession(this.roomCode);
+    }
+    await this.fetchInitialState();
     this.initWebSocket();
   }
 
@@ -60,13 +69,13 @@ export class LobbyService {
 
     try {
       const res = await fetch(
-        `${apiUrl}/api/v1/game/${this.roomCode}/state?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}`
+        `${apiUrl}/api/v1/game/${this.roomCode}/state?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}&account_token=${encodeURIComponent(session.accountToken || "")}`
       );
       if (res.ok) {
         const data = await res.json();
         this.syncFromServerState(data, session.id);
       }
-      const messagesRes = await fetch(`${apiUrl}/api/v1/game/${this.roomCode}/messages`);
+      const messagesRes = await fetch(`${apiUrl}/api/v1/game/${this.roomCode}/messages?player_id=${encodeURIComponent(session.id)}&token=${encodeURIComponent(session.token || "")}&account_token=${encodeURIComponent(session.accountToken || "")}`);
       if (messagesRes.ok) {
         const data = await messagesRes.json();
         this.updateState({ messages: (data.messages || []).map((m: any) => ({
@@ -80,9 +89,12 @@ export class LobbyService {
   }
 
   private initWebSocket() {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || this.authRejected) return;
     const session = getPlayerSession(this.roomCode);
-    const wsUrl = `${getWsBaseUrl()}/api/v1/ws/game/${this.roomCode}?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}`;
+    if (!session.token) {
+      return;
+    }
+    const wsUrl = `${getWsBaseUrl()}/api/v1/ws/game/${this.roomCode}?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}&account_token=${encodeURIComponent(session.accountToken || "")}`;
 
     try {
       const ws = new WebSocket(wsUrl);
@@ -91,7 +103,6 @@ export class LobbyService {
         this.manuallyClosed = false;
         this.socket = ws;
         this.updateState({ connectionStatus: "connected" });
-        void this.fetchInitialState();
 
         if (this.pingInterval) clearInterval(this.pingInterval);
         this.pingInterval = setInterval(() => {
@@ -114,16 +125,20 @@ export class LobbyService {
         this.updateState({ connectionStatus: "disconnected" });
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         this.socket = null;
+        if (event.code === 4404 || event.code === 4401) { this.authRejected = true; this.updateState({ connectionStatus: "disconnected" }); return; }
         if (this.pingInterval) clearInterval(this.pingInterval);
         this.updateState({ connectionStatus: "disconnected" });
         if (!this.manuallyClosed) {
-          this.reconnectTimer = setTimeout(() => this.initWebSocket(), 1500);
+          this.reconnectTimer = setTimeout(async () => {
+            await this.fetchInitialState();
+            if (!this.manuallyClosed) this.initWebSocket();
+          }, 1500);
         }
       };
     } catch {
-      this.updateState({ connectionStatus: "mock_preview" });
+      this.updateState({ connectionStatus: "disconnected" });
     }
   }
 
@@ -133,12 +148,13 @@ export class LobbyService {
     const mappedPlayers: LobbyPlayer[] = data.players.map((p: any, idx: number) => ({
       id: p.id,
       name: p.name,
-      avatarUrl: p.avatar_url || p.avatarUrl || "/images/player_somya.png",
+      avatarUrl: p.avatar_url || p.avatarUrl || "",
       isHost: p.is_host ?? (data.host_id ? p.id === data.host_id : idx === 0),
       isReady: p.is_ready ?? true,
       isCurrentUser: p.id === currentUserId,
       isConnected: p.is_connected !== false,
       slotIndex: p.slot_index ?? idx,
+      isAI: p.is_ai ?? p.isAI ?? false,
     }));
 
     this.updateState({
@@ -163,18 +179,45 @@ export class LobbyService {
 
       case "PLAYER_JOIN":
       case "PLAYER_JOINED":
+      case "PLAYERS_UPDATED":
         if (event.payload?.players) {
           const mapped = event.payload.players.map((p: any, idx: number) => ({
             id: p.id,
             name: p.name,
-            avatarUrl: p.avatarUrl || p.avatar_url || "/images/player_somya.png",
+            avatarUrl: p.avatarUrl || p.avatar_url || "",
             isHost: p.isHost ?? (idx === 0),
             isReady: p.isReady ?? false,
             isCurrentUser: p.id === currentUserId,
             isConnected: p.isConnected ?? p.is_connected ?? true,
             slotIndex: p.slotIndex ?? idx,
+            isAI: p.isAI ?? p.is_ai ?? false,
           }));
           this.updateState({ players: mapped });
+        }
+        break;
+
+      case "PLAYER_LEFT":
+        if (event.payload?.players) {
+          const mapped = event.payload.players.map((p: any, idx: number) => ({
+            id: p.id,
+            name: p.name,
+            avatarUrl: p.avatarUrl || p.avatar_url || "",
+            isHost: p.isHost ?? (idx === 0),
+            isReady: p.isReady ?? false,
+            isCurrentUser: p.id === currentUserId,
+            isConnected: p.isConnected ?? p.is_connected ?? true,
+            slotIndex: p.slotIndex ?? idx,
+            isAI: p.isAI ?? p.is_ai ?? false,
+          }));
+          this.updateState({
+            players: mapped,
+            hostId: event.payload.newHostId || this.state.hostId,
+          });
+        } else if (event.payload?.playerId) {
+          this.updateState({
+            players: this.state.players.filter((p) => p.id !== event.payload.playerId),
+            hostId: event.payload.newHostId || this.state.hostId,
+          });
         }
         break;
 
@@ -183,12 +226,13 @@ export class LobbyService {
           const mapped = event.payload.players.map((p: any, idx: number) => ({
             id: p.id,
             name: p.name,
-            avatarUrl: p.avatarUrl || p.avatar_url || "/images/player_somya.png",
+            avatarUrl: p.avatarUrl || p.avatar_url || "",
             isHost: p.isHost ?? (idx === 0),
             isReady: p.isReady,
             isCurrentUser: p.id === currentUserId,
             isConnected: p.isConnected ?? p.is_connected ?? true,
             slotIndex: p.slotIndex ?? idx,
+            isAI: p.isAI ?? p.is_ai ?? false,
           }));
           this.updateState({ players: mapped });
         } else if (event.payload?.playerId) {
@@ -210,9 +254,9 @@ export class LobbyService {
             timestamp: event.payload.timestamp || "Now",
             isSystem: event.payload.isSystem || false,
           };
-          this.updateState({
-            messages: [...this.state.messages, newMsg],
-          });
+          if (!this.state.messages.some((message) => message.id === newMsg.id)) {
+            this.updateState({ messages: [...this.state.messages, newMsg] });
+          }
         }
         break;
 
@@ -268,7 +312,6 @@ export class LobbyService {
     const updated = this.state.players.map((p) =>
       p.id === targetId ? { ...p, isReady: !p.isReady } : p
     );
-    this.updateState({ players: updated });
 
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(
@@ -280,52 +323,46 @@ export class LobbyService {
     } else {
       try {
         const apiUrl = getApiBaseUrl();
-        await fetch(`${apiUrl}/api/v1/game/${this.roomCode}/ready`, {
+        const response = await fetch(`${apiUrl}/api/v1/game/${this.roomCode}/ready`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ player_id: targetId, token: session.token }),
+          body: JSON.stringify({ player_id: targetId, token: session.token, account_token: session.accountToken }),
         });
+        if (!response.ok) throw new Error("Ready update failed");
+        this.updateState({ players: updated });
       } catch {
-        // ignore
+        // Server state remains authoritative; the next sync updates the lobby.
       }
     }
   }
 
-  public async sendChatMessage(text: string) {
+  public async sendChatMessage(text: string): Promise<{ success: boolean; message?: string }> {
     const clean = text.trim();
-    if (!clean) return;
+    if (!clean) return { success: false, message: "Write a message first." };
 
     const session = getPlayerSession(this.roomCode);
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      this.socket.send(
-        JSON.stringify({
-          type: "CHAT_MESSAGE",
-          payload: {
-            senderId: session.id,
-            senderName: session.name,
-            avatarUrl: session.avatarUrl,
-            content: clean,
-            token: session.token,
-          },
-        })
-      );
-    } else {
-      try {
-        const apiUrl = getApiBaseUrl();
-        await fetch(`${apiUrl}/api/v1/game/${this.roomCode}/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            senderId: session.id,
-            senderName: session.name,
-            avatarUrl: session.avatarUrl,
-            content: clean,
-            token: session.token,
-          }),
-        });
-      } catch {
-        // ignore
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/v1/game/${this.roomCode}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ senderId: session.id, content: clean, token: session.token, account_token: session.accountToken }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) return { success: false, message: result.detail || result.message || "Message was rejected." };
+      const message = result.message;
+      if (message?.id && !this.state.messages.some((item) => item.id === message.id)) {
+        this.updateState({ messages: [...this.state.messages, {
+          id: message.id,
+          senderId: message.senderId,
+          senderName: message.senderName,
+          text: message.text || message.content || clean,
+          timestamp: message.timestamp || "Now",
+          isSystem: Boolean(message.isSystem),
+        }] });
       }
+      return { success: true };
+    } catch {
+      return { success: false, message: "Could not reach the game server." };
     }
   }
 
@@ -335,15 +372,11 @@ export class LobbyService {
 
     try {
       const res = await fetch(
-        `${apiUrl}/api/v1/game/${this.roomCode}/start?host_id=${session.id}&token=${encodeURIComponent(session.token || "")}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        }
+        `${apiUrl}/api/v1/game/${this.roomCode}/start`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ host_id: session.id, token: session.token, account_token: session.accountToken }) }
       );
 
       if (res.ok) {
-        this.updateState({ status: "playing" });
         return { success: true, message: "Game started." };
       } else {
         const err = await res.json().catch(() => ({ detail: "Failed to start game." }));
@@ -352,6 +385,46 @@ export class LobbyService {
     } catch {
       return { success: false, message: "Server connection failed." };
     }
+  }
+
+  public async addTestPlayers(count?: number): Promise<{ success: boolean; message: string }> {
+    const session = getPlayerSession(this.roomCode);
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/v1/game/${this.roomCode}/test-players`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.accountToken || ""}` },
+        body: JSON.stringify(count ? { count } : {}),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return { success: false, message: data.detail || "Could not add test players." };
+      this.syncFromServerState(await this.fetchStateData(), session.id);
+      return { success: true, message: `Added ${data.added} test player${data.added === 1 ? "" : "s"}.` };
+    } catch {
+      return { success: false, message: "Could not connect to the game server." };
+    }
+  }
+
+  public async removeTestPlayer(playerId: string): Promise<{ success: boolean; message: string }> {
+    const session = getPlayerSession(this.roomCode);
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/v1/game/${this.roomCode}/test-players/${encodeURIComponent(playerId)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${session.accountToken || ""}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return { success: false, message: data.detail || "Could not remove test player." };
+      this.syncFromServerState(await this.fetchStateData(), session.id);
+      return { success: true, message: "Test player removed." };
+    } catch {
+      return { success: false, message: "Could not connect to the game server." };
+    }
+  }
+
+  private async fetchStateData(): Promise<any> {
+    const session = getPlayerSession(this.roomCode);
+    const response = await fetch(`${getApiBaseUrl()}/api/v1/game/${this.roomCode}/state?player_id=${encodeURIComponent(session.id)}&token=${encodeURIComponent(session.token || "")}&account_token=${encodeURIComponent(session.accountToken || "")}`);
+    if (!response.ok) throw new Error("Lobby state refresh failed");
+    return response.json();
   }
 
   public updateSettings(partialSettings: Partial<LobbySettings>) {
@@ -395,6 +468,34 @@ export class LobbyService {
       canStart: reasons.length === 0,
       reasons,
     };
+  }
+
+  public async leaveLobby(): Promise<{ success: boolean; message: string }> {
+    const session = getPlayerSession(this.roomCode);
+    const apiUrl = getApiBaseUrl();
+
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/game/${this.roomCode}/leave`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          player_id: session.id,
+          token: session.token,
+          account_token: session.accountToken,
+        }),
+      });
+
+      this.disconnect();
+      if (res.ok) {
+        return { success: true, message: "Left lobby." };
+      } else {
+        const err = await res.json().catch(() => ({ detail: "Failed to leave lobby." }));
+        return { success: false, message: err.detail || "Cannot leave lobby." };
+      }
+    } catch {
+      this.disconnect();
+      return { success: true, message: "Disconnected from lobby." };
+    }
   }
 
   public disconnect() {

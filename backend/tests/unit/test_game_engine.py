@@ -12,6 +12,14 @@ from app.game_engine.models import (
 )
 
 
+async def authenticated(client, username):
+    import uuid
+    suffix = uuid.uuid4().hex[:8]
+    response = await client.post("/api/v1/auth/register", json={"username": f"{username}{suffix}", "email": f"{username.lower()}{suffix}@example.com", "password": "secure-pass-123"})
+    assert response.status_code == 200, response.text
+    return response.json()["access_token"]
+
+
 def test_game_engine_role_assignment():
     engine = GameEngine("TEST01")
     for i in range(8):
@@ -142,7 +150,8 @@ async def test_rest_api_game_flow():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # 1. Create Room
-        res = await client.post("/api/v1/game/create", json={"host_name": "Somya"})
+        account_tokens = [await authenticated(client, name) for name in ["Somya", "Shubh", "Pari", "Arnav"]]
+        res = await client.post("/api/v1/game/create", json={}, headers={"Authorization": f"Bearer {account_tokens[0]}"})
         assert res.status_code == 200
         room_data = res.json()
         code = room_data["room_code"]
@@ -151,27 +160,28 @@ async def test_rest_api_game_flow():
 
         # 2. Join 3 more players
         joined = []
-        for name in ["Shubh", "Pari", "Arnav"]:
+        for index, name in enumerate(["Shubh", "Pari", "Arnav"], start=1):
             join_res = await client.post(
-                f"/api/v1/game/{code}/join", json={"player_name": name}
+                f"/api/v1/game/{code}/join", json={}, headers={"Authorization": f"Bearer {account_tokens[index]}"}
             )
             assert join_res.status_code == 200
             joined.append(join_res.json())
             await client.post(f"/api/v1/game/{code}/ready", json={
                 "player_id": join_res.json()["player_id"],
                 "token": join_res.json()["session_token"],
+                "account_token": account_tokens[index],
             })
 
         # 3. Start Game
         start_res = await client.post(f"/api/v1/game/{code}/start", params={
-            "host_id": host_id, "token": host_token,
+            "host_id": host_id, "token": host_token, "account_token": account_tokens[0],
         })
         assert start_res.status_code == 200
         assert start_res.json()["status"] == "started"
 
         # 4. Check State with Zero Leakage
         state_res = await client.get(
-            f"/api/v1/game/{code}/state", params={"player_id": host_id, "token": host_token}
+            f"/api/v1/game/{code}/state", params={"player_id": host_id, "token": host_token, "account_token": account_tokens[0]}
         )
         assert state_res.status_code == 200
         st = state_res.json()

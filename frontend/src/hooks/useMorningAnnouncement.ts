@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { MorningService } from "@/services/morningService";
 import { MorningAnnouncementState } from "@/types/morningAnnouncement";
 
-export function useMorningAnnouncement(roomCode = "A7K4D9", roundNumber = 2) {
+export function useMorningAnnouncement(roomCode = "", roundNumber = 1) {
   const serviceRef = useRef<MorningService | null>(null);
   if (serviceRef.current === null) {
     serviceRef.current = new MorningService(roomCode, roundNumber);
@@ -14,6 +14,12 @@ export function useMorningAnnouncement(roomCode = "A7K4D9", roundNumber = 2) {
   const [state, setState] = useState<MorningAnnouncementState>(() =>
     service.getState()
   );
+
+  useEffect(() => {
+    if (roomCode) {
+      void service.reinit(roomCode);
+    }
+  }, [roomCode, service]);
 
   useEffect(() => {
     setState({ ...service.getState() });

@@ -97,6 +97,7 @@ export function getWsBaseUrl(): string {
 export async function createRoom(config: RoomConfig): Promise<RoomOperationResult> {
   const apiUrl = getApiBaseUrl();
   const session = getPlayerSession();
+  if (!session.accountToken) return { success: false, message: "Sign in before creating a game." };
 
   if (!config.roomName || config.roomName.trim().length < 3) {
     return {
@@ -108,9 +109,8 @@ export async function createRoom(config: RoomConfig): Promise<RoomOperationResul
   try {
     const res = await fetch(`${apiUrl}/api/v1/game/create`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.accountToken}` },
       body: JSON.stringify({
-        host_name: session.name,
         room_name: config.roomName.trim(),
         capacity: config.playerCapacity,
         is_private: config.isPrivate,
@@ -127,7 +127,7 @@ export async function createRoom(config: RoomConfig): Promise<RoomOperationResul
 
       // Update session with returned hostId
       if (hostId) {
-        setPlayerSession(session.name, session.avatarUrl, hostId, data.session_token, roomCode);
+        setPlayerSession(session.name, session.avatarUrl, hostId, data.session_token, roomCode, session.id, session.accountToken);
       }
 
       return {
@@ -169,60 +169,25 @@ export async function createRoom(config: RoomConfig): Promise<RoomOperationResul
 /**
  * Joins an existing game room by code
  */
-export async function joinRoom(roomCode: string, playerName?: string): Promise<RoomOperationResult> {
+export async function joinRoom(roomCode: string): Promise<RoomOperationResult> {
   const apiUrl = getApiBaseUrl();
   const cleanCode = roomCode.trim().toUpperCase();
-
-  if (!cleanCode || cleanCode.length < 4) {
-    return {
-      success: false,
-      message: "Please enter a valid room code (e.g. AIT-1234).",
-    };
-  }
-
-  let session = getPlayerSession(cleanCode);
-  if (playerName && playerName.trim()) {
-    session = setPlayerSession(
-      playerName.trim(), session.avatarUrl, session.id, session.token, cleanCode
-    );
-  }
+  const session = getPlayerSession();
+  if (!session.accountToken) return { success: false, message: "Sign in before joining a game." };
+  if (!cleanCode || cleanCode.length < 4) return { success: false, message: "Please enter a valid room code." };
 
   try {
     const res = await fetch(`${apiUrl}/api/v1/game/${cleanCode}/join`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        player_name: session.name,
-        avatar_url: session.avatarUrl,
-        player_id: session.id,
-        token: session.token,
-      }),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.accountToken}` },
+      body: JSON.stringify({}),
     });
-
-    if (res.ok) {
-      const data = await res.json();
-      const assignedId = data.player_id || data.playerId || session.id;
-      setPlayerSession(session.name, session.avatarUrl, assignedId, data.session_token, cleanCode);
-
-      return {
-        success: true,
-        message: "Entered council chamber successfully.",
-        roomCode: cleanCode,
-        playerId: assignedId,
-        room: data.room,
-        isMock: false,
-      };
-    } else {
-      const err = await res.json().catch(() => ({ detail: "Cannot join room." }));
-      return {
-        success: false,
-        message: err.detail || "Unable to join room. Please check the code.",
-      };
-    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { success: false, message: data.detail || "Unable to join room." };
+    const assignedId = data.player_id || data.playerId;
+    setPlayerSession(session.name, session.avatarUrl, assignedId, data.session_token, cleanCode, session.id, session.accountToken);
+    return { success: true, message: "Joined the room.", roomCode: cleanCode, playerId: assignedId, room: data.room, isMock: false };
   } catch {
-    return {
-      success: false,
-      message: "Connection failed. Please check your network or backend server.",
-    };
+    return { success: false, message: "Connection failed. Please check your network or backend server." };
   }
 }

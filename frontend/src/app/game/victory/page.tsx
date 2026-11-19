@@ -7,7 +7,7 @@ import { VictoryOutcome } from "@/types/victory";
 
 function VictoryPageContent() {
   const searchParams = useSearchParams();
-  const roomCode = searchParams.get("room") || "A7K4D9";
+  const roomCode = searchParams.get("room") || "";
   const outcomeParam = searchParams.get("outcome");
   const initialOutcome: VictoryOutcome =
     outcomeParam === "TRAITOR_VICTORY" ? "TRAITOR_VICTORY" : "FAITHFUL_VICTORY";

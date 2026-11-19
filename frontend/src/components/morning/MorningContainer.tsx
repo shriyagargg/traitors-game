@@ -10,7 +10,8 @@ import { MorningAnnouncementBanner } from "./MorningAnnouncementBanner";
 import { EliminatedPlayerCard } from "./EliminatedPlayerCard";
 import { useMorningAnnouncement } from "@/hooks/useMorningAnnouncement";
 import { useGamePhaseGuard } from "@/hooks/useGamePhaseGuard";
-import { MOCK_PLAYER_PROFILE } from "@/services/dashboard";
+import { getPlayerSession } from "@/services/playerSession";
+import { getApiBaseUrl } from "@/services/rooms";
 
 interface MorningContainerProps {
   roomCode?: string;
@@ -18,8 +19,8 @@ interface MorningContainerProps {
 }
 
 export function MorningContainer({
-  roomCode = "A7K4D9",
-  roundNumber = 2,
+  roomCode = "",
+  roundNumber = 1,
 }: MorningContainerProps) {
   useGamePhaseGuard(roomCode, "MORNING");
   const router = useRouter();
@@ -30,12 +31,26 @@ export function MorningContainer({
 
   const [navigating, setNavigating] = useState(false);
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (navigating) return;
     setNavigating(true);
+    try {
+      const session = getPlayerSession(state.roomCode);
+      await fetch(`${getApiBaseUrl()}/api/v1/game/${encodeURIComponent(state.roomCode)}/advance-phase`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          player_id: session.id,
+          token: session.token,
+          account_token: session.accountToken,
+        }),
+      });
+    } catch {
+      // Backend will also advance on timer
+    }
     setTimeout(() => {
       router.push(`/game/discussion?room=${state.roomCode}&round=${state.roundNumber}`);
-    }, 600);
+    }, 400);
   };
 
   return (
@@ -59,7 +74,7 @@ export function MorningContainer({
       />
 
       {/* 2. Top Navigation Bar (Reused Master Header) */}
-      <DashboardHeader activeNav="dashboard" profile={MOCK_PLAYER_PROFILE} />
+      <DashboardHeader activeNav="dashboard" profile={{ name: getPlayerSession().name, email: getPlayerSession().email || "", avatarUrl: getPlayerSession().avatarUrl, roleBadge: "" }} />
 
       {/* 3. Main Master 2-Column Layout */}
       <main className="flex-1 w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-5 z-10 flex flex-col justify-between gap-5">

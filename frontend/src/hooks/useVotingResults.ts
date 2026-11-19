@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { VotingResultsService } from "@/services/votingResultsService";
 import { VotingResultsState, PlayerRole, GameOutcomeStatus } from "@/types/votingResults";
 
-export function useVotingResults(roomCode = "A7K4D9", roundNumber = 2) {
+export function useVotingResults(roomCode = "", roundNumber = 1) {
   const serviceRef = useRef<VotingResultsService | null>(null);
   if (serviceRef.current === null) {
     serviceRef.current = new VotingResultsService(roomCode, roundNumber);
@@ -12,6 +12,12 @@ export function useVotingResults(roomCode = "A7K4D9", roundNumber = 2) {
   const service = serviceRef.current;
 
   const [state, setState] = useState<VotingResultsState>(() => service.getState());
+
+  useEffect(() => {
+    if (roomCode) {
+      void service.reinit(roomCode);
+    }
+  }, [roomCode, service]);
 
   useEffect(() => {
     setState({ ...service.getState() });

@@ -37,8 +37,9 @@ class PlayerStatus(str, Enum):
 
 class Player(BaseModel):
     id: str
+    user_id: Optional[str] = None
     name: str
-    avatar_url: str = "/images/player_somya.png"
+    avatar_url: str = ""
     role: Role = Role.FAITHFUL
     status: PlayerStatus = PlayerStatus.ALIVE
     status_round: Optional[str] = None
@@ -72,11 +73,12 @@ class ChatMessage(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
     sender_id: str
     sender_name: str
-    avatar_url: str = "/images/player_somya.png"
+    avatar_url: str = ""
     content: str
     timestamp: float = Field(default_factory=time.time)
     is_architect: bool = False
     is_system: bool = False
+    is_ai: bool = False
     phase: str = "DISCUSSION"
     round_number: int = 1
 
@@ -100,12 +102,12 @@ class GameState(BaseModel):
     is_private: bool = False
 
     # Durations in seconds
-    role_reveal_duration: int = 20
-    night_duration: int = 30
-    morning_duration: int = 20
-    discussion_duration: int = 120
-    voting_duration: int = 60
-    voting_results_duration: int = 25
+    role_reveal_duration: int = 15
+    night_duration: int = 25
+    morning_duration: int = 15
+    discussion_duration: int = 60
+    voting_duration: int = 40
+    voting_results_duration: int = 20
 
     # Server-Authoritative Timestamps (Epoch seconds)
     phase_started_at: float = 0.0

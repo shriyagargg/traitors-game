@@ -6,10 +6,10 @@ import { DiscussionContainer } from "@/components/discussion/DiscussionContainer
 
 function DiscussionContent() {
   const searchParams = useSearchParams();
-  const roomCode = searchParams.get("room") || searchParams.get("code") || "A7K4D9";
-  const roundNumber = Number(searchParams.get("round")) || 2;
+  const roomCode = searchParams.get("room") || searchParams.get("code") || "";
+  const roundNumber = Number(searchParams.get("round")) || 1;
 
-  return <DiscussionContainer roomCode={roomCode} roundNumber={roundNumber} />;
+  return roomCode ? <DiscussionContainer roomCode={roomCode} roundNumber={roundNumber} /> : <div className="min-h-screen bg-[#09060D]" />;
 }
 
 export default function DiscussionPage() {

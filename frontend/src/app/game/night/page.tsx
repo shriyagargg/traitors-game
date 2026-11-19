@@ -7,7 +7,7 @@ import { GameRole } from "@/types/roleReveal";
 
 function NightPhaseContent() {
   const searchParams = useSearchParams();
-  const roomCode = searchParams.get("room") || searchParams.get("code") || "A7K4D9";
+  const roomCode = searchParams.get("room") || searchParams.get("code") || "";
   const roleParam = searchParams.get("role") as GameRole | null;
   const initialRole: GameRole =
     roleParam === "traitor" ||
@@ -16,7 +16,7 @@ function NightPhaseContent() {
     roleParam === "faithful"
       ? roleParam
       : "traitor";
-  const roundNumber = Number(searchParams.get("round")) || 2;
+  const roundNumber = Number(searchParams.get("round")) || 1;
 
   return (
     <NightContainer

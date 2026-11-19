@@ -9,7 +9,7 @@ import { VotingAnnouncement } from "./VotingAnnouncement";
 import { VotingActionPanel } from "./VotingActionPanel";
 import { useVotingPhase } from "@/hooks/useVotingPhase";
 import { useGamePhaseGuard } from "@/hooks/useGamePhaseGuard";
-import { MOCK_PLAYER_PROFILE } from "@/services/dashboard";
+import { getPlayerSession } from "@/services/playerSession";
 import { Radio, RotateCcw, FastForward, Scale, ArrowRight, Loader2 } from "lucide-react";
 
 interface VotingContainerProps {
@@ -18,8 +18,8 @@ interface VotingContainerProps {
 }
 
 export function VotingContainer({
-  roomCode = "A7K4D9",
-  roundNumber = 2,
+  roomCode = "",
+  roundNumber = 1,
 }: VotingContainerProps) {
   useGamePhaseGuard(roomCode, "VOTING");
   const router = useRouter();
@@ -27,34 +27,35 @@ export function VotingContainer({
   const {
     state,
     targets,
+    allPlayers,
     formattedTimer,
     selectTarget,
     submitVote,
     resetVote,
-    resetTimer,
-    fastForward,
   } = useVotingPhase(roomCode, roundNumber);
 
   const [isAdvancing, setIsAdvancing] = useState(false);
 
-  // Auto-transition when vote is submitted or timer ends
+  // Results navigation follows the server's phase event, never a client timer
+  // or an unconfirmed vote count.
   useEffect(() => {
-    if ((state.allVotesRecorded || state.timerSeconds === 0) && !navigatedRef.current) {
+    if ((state.serverPhase === "VOTING_RESULTS" || state.serverPhase === "GAME_OVER") && !navigatedRef.current) {
       navigatedRef.current = true;
       setIsAdvancing(true);
-      const timer = setTimeout(() => {
-        router.push(`/game/voting-results?room=${roomCode}&round=${roundNumber}`);
-      }, 2000);
-      return () => clearTimeout(timer);
+      router.push(`/game/voting-results?room=${roomCode}&round=${roundNumber}`);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.allVotesRecorded, state.timerSeconds]);
+  }, [state.serverPhase]);
 
-  // Map live targets or INITIAL_VOTING_PLAYERS to MorningPlayer shape for player list
-  const playerList = targets.map((p: any) => ({
+  const playerRoster = allPlayers && allPlayers.length > 0
+    ? allPlayers
+    : targets;
+
+  // Map all council members to MorningPlayer shape for player list
+  const playerList = playerRoster.map((p: any) => ({
     id: p.id,
     name: p.name,
-    avatarUrl: p.avatarUrl,
+    avatarUrl: p.avatarUrl || "",
     isAlive: p.isAlive ?? true,
     isHost: p.isHost ?? false,
     isCurrentUser: p.id === state.currentUserId,
@@ -82,7 +83,7 @@ export function VotingContainer({
       />
 
       {/* 2. Top Navigation Bar (Reused Master Header) */}
-      <DashboardHeader activeNav="dashboard" profile={MOCK_PLAYER_PROFILE} />
+      <DashboardHeader activeNav="dashboard" profile={{ name: getPlayerSession().name, email: getPlayerSession().email || "", avatarUrl: getPlayerSession().avatarUrl, roleBadge: "" }} />
 
       {/* 3. Main Master 2-Column Layout */}
       <main className="flex-1 w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-5 z-10 flex flex-col justify-between gap-4">
@@ -118,13 +119,19 @@ export function VotingContainer({
 
             {/* Voting Action Panel with Eligible Living Targets & Submit Button */}
             <div className="flex-1 flex flex-col justify-center">
+              <p className="mb-2 text-right text-xs font-mono text-text-secondary" aria-live="polite">
+                Ballots received: {state.votesCast ?? 0} / {state.eligibleVoters ?? allPlayers.filter((p: any) => p.isAlive).length}
+              </p>
               <VotingActionPanel
                 targets={targets}
                 selectedTargetId={state.selectedTargetId}
                 isSubmitted={state.isSubmitted}
+                isVotingOpen={state.hasSynced && !state.isTimeUp}
                 submittedTargetName={state.submittedTargetName}
                 onSelectTarget={selectTarget}
                 onSubmitVote={submitVote}
+                roomCode={roomCode}
+                roundNumber={roundNumber}
               />
             </div>
           </div>

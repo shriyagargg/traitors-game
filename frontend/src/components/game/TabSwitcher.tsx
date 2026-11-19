@@ -12,20 +12,20 @@ interface TabSwitcherProps {
 
 export function TabSwitcher({ activeTab, onTabChange }: TabSwitcherProps) {
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 my-6 w-full max-w-xl mx-auto z-10 relative">
+    <div className="flex flex-col sm:flex-row items-center justify-start gap-2 mb-5 w-full z-10 relative">
       {/* Tab 1: Create a Game */}
       <button
         type="button"
         onClick={() => onTabChange("create")}
-        className={`w-full sm:w-1/2 py-3.5 px-6 rounded-2xl font-cinzel text-sm sm:text-base flex items-center justify-center gap-2.5 transition-all duration-300 ${
+        className={`w-full sm:w-auto py-2.5 px-4 rounded-lg text-sm flex items-center justify-center gap-2.5 transition-all duration-300 ${
           activeTab === "create"
-            ? "bg-gradient-to-r from-gold-light via-[#F3DEAA] to-gold-antique text-background font-bold shadow-[0_0_25px_rgba(242,216,154,0.35)] scale-[1.02]"
-            : "bg-[#120A14]/80 hover:bg-[#1A0E1C] border border-gold-antique/50 text-text-main hover:text-gold-light font-medium backdrop-blur-md shadow-sm"
+            ? "bg-[#392c40] text-white font-semibold"
+            : "bg-transparent border border-white/10 text-[#b9b0bd] hover:text-white font-medium"
         }`}
       >
         <Gamepad2
           className={`w-5 h-5 ${
-            activeTab === "create" ? "text-background stroke-[2.2]" : "text-gold-antique"
+            activeTab === "create" ? "text-[#e1cbd4] stroke-[2.2]" : "text-[#c4a6d2]"
           }`}
         />
         <span>Create a Game</span>
@@ -35,15 +35,15 @@ export function TabSwitcher({ activeTab, onTabChange }: TabSwitcherProps) {
       <button
         type="button"
         onClick={() => onTabChange("join")}
-        className={`w-full sm:w-1/2 py-3.5 px-6 rounded-2xl font-cinzel text-sm sm:text-base flex items-center justify-center gap-2.5 transition-all duration-300 ${
+        className={`w-full sm:w-auto py-2.5 px-4 rounded-lg text-sm flex items-center justify-center gap-2.5 transition-all duration-300 ${
           activeTab === "join"
-            ? "bg-gradient-to-r from-gold-light via-[#F3DEAA] to-gold-antique text-background font-bold shadow-[0_0_25px_rgba(242,216,154,0.35)] scale-[1.02]"
-            : "bg-[#120A14]/80 hover:bg-[#1A0E1C] border border-gold-antique/50 text-text-main hover:text-gold-light font-medium backdrop-blur-md shadow-sm"
+            ? "bg-[#392c40] text-white font-semibold"
+            : "bg-transparent border border-white/10 text-[#b9b0bd] hover:text-white font-medium"
         }`}
       >
         <Users
           className={`w-5 h-5 ${
-            activeTab === "join" ? "text-background stroke-[2.2]" : "text-gold-antique"
+            activeTab === "join" ? "text-[#e1cbd4] stroke-[2.2]" : "text-[#c4a6d2]"
           }`}
         />
         <span>Join a Game</span>

@@ -3,7 +3,7 @@ import {
   MorningAnnouncementState,
 } from "@/types/morningAnnouncement";
 import { getApiBaseUrl, getWsBaseUrl } from "./rooms";
-import { getPlayerSession } from "./playerSession";
+import { getPlayerSession, ensureRoomSession } from "./playerSession";
 
 export class MorningService {
   private state: MorningAnnouncementState;
@@ -14,7 +14,7 @@ export class MorningService {
   private timerInterval: NodeJS.Timeout | null = null;
   private serverPhaseEndsAt: number = 0;
 
-  constructor(roomCode = "A7K4D9", roundNumber = 1) {
+  constructor(roomCode = "", roundNumber = 1) {
     this.state = {
       roomCode: roomCode.toUpperCase(),
       roundNumber: roundNumber,
@@ -22,22 +22,40 @@ export class MorningService {
       eliminatedPlayer: null,
       players: [],
       roleRevealPermitted: false,
-      connectionStatus: "mock_preview",
+      connectionStatus: "disconnected",
       dynamicAnnouncement: null,
     };
 
-    this.fetchInitialState();
+    void this.init();
+  }
+
+  public async reinit(roomCode: string) {
+    if (!roomCode || roomCode === this.state.roomCode) return;
+    this.state.roomCode = roomCode.toUpperCase();
+    await this.init();
+  }
+
+  private async init() {
+    if (typeof window === "undefined") return;
+    let session = getPlayerSession(this.state.roomCode);
+    if (!session.token && session.accountToken) {
+      session = await ensureRoomSession(this.state.roomCode);
+    }
+    await this.fetchInitialState();
     this.initWebSocket();
   }
 
   private async fetchInitialState() {
     if (typeof window === "undefined") return;
-    const session = getPlayerSession(this.state.roomCode);
+    let session = getPlayerSession(this.state.roomCode);
+    if (!session.token && session.accountToken) {
+      session = await ensureRoomSession(this.state.roomCode);
+    }
     const apiUrl = getApiBaseUrl();
 
     try {
       const res = await fetch(
-        `${apiUrl}/api/v1/game/${this.state.roomCode}/state?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}`
+        `${apiUrl}/api/v1/game/${this.state.roomCode}/state?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}&account_token=${encodeURIComponent(session.accountToken || "")}`
       );
       if (res.ok) {
         const data = await res.json();
@@ -55,7 +73,7 @@ export class MorningService {
     const mappedPlayers: MorningPlayer[] = data.players.map((p: any) => ({
       id: p.id,
       name: p.name,
-      avatarUrl: p.avatar_url || p.avatarUrl || "/images/player_somya.png",
+      avatarUrl: p.avatar_url || p.avatarUrl || "",
       isAlive: p.is_alive ?? (p.status === "ALIVE"),
       isEliminatedTonight: murderedId ? p.id === murderedId : false,
       isHost: p.is_host ?? false,
@@ -74,9 +92,10 @@ export class MorningService {
   }
 
   private initWebSocket() {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || this.disposed) return;
     const session = getPlayerSession(this.state.roomCode);
-    const wsUrl = `${getWsBaseUrl()}/api/v1/ws/game/${this.state.roomCode}?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}`;
+    if (!session.token) return;
+    const wsUrl = `${getWsBaseUrl()}/api/v1/ws/game/${this.state.roomCode}?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}&account_token=${encodeURIComponent(session.accountToken || "")}`;
 
     try {
       const ws = new WebSocket(wsUrl);
@@ -101,18 +120,19 @@ export class MorningService {
 
       ws.onerror = () => {
         this.socket = null;
-        this.updateState({ connectionStatus: "mock_preview" });
+        this.updateState({ connectionStatus: "disconnected" });
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         this.socket = null;
-        this.updateState({ connectionStatus: "mock_preview" });
+        this.updateState({ connectionStatus: "disconnected" });
+        if (event.code === 4404 || event.code === 4401) return;
         if (!this.disposed) {
           this.reconnectTimer = setTimeout(() => this.initWebSocket(), 1500);
         }
       };
     } catch {
-      this.updateState({ connectionStatus: "mock_preview" });
+      this.updateState({ connectionStatus: "disconnected" });
     }
   }
 

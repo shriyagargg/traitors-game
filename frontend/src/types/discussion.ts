@@ -16,6 +16,7 @@ export interface DiscussionMessage {
   timestamp: string;
   text: string;
   isArchitect?: boolean;
+  isAI?: boolean;
 }
 
 export interface ArchitectAnnouncement {
@@ -29,12 +30,14 @@ export interface DiscussionState {
   roomCode: string;
   roundNumber: number;
   phaseName: string;
+  serverPhase?: string;
   phaseType: "Day" | "Night";
   timerSeconds: number;
   announcement: ArchitectAnnouncement;
   players: DiscussionPlayer[];
   messages: DiscussionMessage[];
-  connectionStatus: "connected" | "mock_preview";
+  connectionStatus: "connected" | "disconnected";
+  hasSynced?: boolean;
   isTimeUp?: boolean;
   autoAdvanceSeconds?: number;
 }

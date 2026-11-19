@@ -9,6 +9,7 @@ export interface LobbyPlayer {
   isCurrentUser: boolean;
   isConnected: boolean;
   slotIndex: number;
+  isAI?: boolean;
 }
 
 export interface LobbySettings {
@@ -32,7 +33,6 @@ export interface LobbyChatMessage {
 export type LobbyConnectionStatus =
   | "connected"
   | "connecting"
-  | "mock_preview"
   | "disconnected";
 
 export interface LobbyRoomState {

@@ -18,32 +18,46 @@ export function BanishmentRevealCard({
   onReveal,
   onHide,
 }: BanishmentRevealCardProps) {
+  const [localRevealed, setLocalRevealed] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
 
+  const showRevealed = isRoleRevealed || localRevealed;
+
   if (!banishedPlayer) {
-    return <div className="w-full rounded-3xl border border-white/10 bg-[#120A14]/90 p-8 flex flex-col items-center justify-center text-center min-h-[440px]">
-      <Sparkles className="w-10 h-10 text-gold-antique mb-4" />
-      <h2 className="font-cinzel text-xl font-bold text-gold-light">No One Banished</h2>
-      <p className="mt-2 text-sm text-text-secondary">The vote was tied. The council will reconvene next round.</p>
-    </div>;
+    return (
+      <div className="w-full rounded-3xl border border-white/10 bg-[#120A14]/90 p-8 flex flex-col items-center justify-center text-center min-h-[440px]">
+        <Sparkles className="w-10 h-10 text-gold-antique mb-4 animate-pulse" />
+        <h2 className="font-cinzel text-xl font-bold text-gold-light">No Council Banishment</h2>
+        <p className="mt-2 text-sm text-text-secondary max-w-sm leading-relaxed">
+          The ballots stood in deadlock or no majority was reached. The council will reconvene next round.
+        </p>
+      </div>
+    );
   }
 
   const handleRevealClick = () => {
     setIsAnimating(true);
-    setTimeout(() => {
+    setLocalRevealed(true);
+    try {
       onReveal();
+    } catch {
+      // ignore
+    }
+    setTimeout(() => {
       setIsAnimating(false);
-    }, 600);
+    }, 400);
   };
 
-  const isTraitor = banishedPlayer.isTraitor;
+  const isTraitor =
+    banishedPlayer.isTraitor ||
+    String(banishedPlayer.role).toLowerCase() === "traitor";
 
   return (
     <div className="w-full rounded-3xl border border-white/10 bg-[#120A14]/90 backdrop-blur-xl p-6 sm:p-8 flex flex-col items-center justify-between text-center shadow-[0_4px_30px_rgba(20,9,28,0.5)] min-h-[440px] relative overflow-hidden">
       {/* Background ambient glow based on revealed allegiance */}
       <div
         className={`pointer-events-none absolute inset-0 transition-opacity duration-1000 ${
-          isRoleRevealed
+          showRevealed
             ? isTraitor
               ? "opacity-30 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-red-600 via-transparent to-transparent"
               : "opacity-25 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-emerald-600 via-transparent to-transparent"
@@ -66,22 +80,22 @@ export function BanishmentRevealCard({
         {/* Avatar with dynamic ring */}
         <div
           className={`relative w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden transition-all duration-700 ${
-            isRoleRevealed
+            showRevealed
               ? isTraitor
                 ? "ring-4 ring-red-500 shadow-[0_0_40px_rgba(239,68,68,0.7)]"
                 : "ring-4 ring-emerald-400 shadow-[0_0_40px_rgba(16,185,129,0.7)]"
               : "ring-2 ring-gold-antique/50 shadow-[0_0_25px_rgba(212,175,55,0.3)] animate-pulse"
           }`}
         >
-          <Image
+          {banishedPlayer.avatarUrl ? <Image
             src={banishedPlayer.avatarUrl}
             alt={banishedPlayer.name}
             fill
             unoptimized
             className={`object-cover transition-all duration-700 ${
-              isRoleRevealed ? "scale-105" : "grayscale"
+              showRevealed ? "scale-105" : "grayscale"
             }`}
-          />
+          /> : <span className="flex h-full w-full items-center justify-center bg-[#2a1d2d] text-2xl font-bold text-white">{banishedPlayer.name.slice(0, 2).toUpperCase()}</span>}
         </div>
 
         {/* Player Name & Votes Received */}
@@ -93,7 +107,7 @@ export function BanishmentRevealCard({
         </p>
 
         {/* 3. Role Reveal Content */}
-        {!isRoleRevealed ? (
+        {!showRevealed ? (
           <div className="mt-6 flex flex-col items-center">
             <div className="px-4 py-2 rounded-xl bg-purple-950/40 border border-purple-500/30 text-xs font-sans text-purple-200 max-w-xs text-center mb-5">
               The council has delivered their judgment. Step forward and disclose your true allegiance.
@@ -129,7 +143,7 @@ export function BanishmentRevealCard({
                   isTraitor ? "text-red-200" : "text-emerald-200"
                 }`}
               >
-                {banishedPlayer.role}
+                {isTraitor ? "TRAITOR" : "FAITHFUL"}
               </span>
             </div>
 
@@ -137,11 +151,11 @@ export function BanishmentRevealCard({
             <div className="relative p-4 rounded-2xl bg-[#1A0E1C]/90 border border-gold-antique/25 max-w-sm shadow-inner text-center">
               <Sparkles className="w-3.5 h-3.5 text-gold-antique absolute top-2.5 left-3" />
               <p className="text-xs sm:text-sm font-cormorant italic text-gold-light/95 leading-relaxed pt-1">
-                &ldquo;{banishedPlayer.confession}&rdquo;
+                &ldquo;{banishedPlayer.confession || (isTraitor ? "I walked among you in the shadows of this chamber. I confess: I am a TRAITOR." : "You have condemned an innocent soul. I was and remain a FAITHFUL.")}&rdquo;
               </p>
             </div>
 
-            {/* Reset / Hide Toggle for Evaluator Convenience */}
+            {/* Hide Toggle */}
             <button
               type="button"
               onClick={onHide}
@@ -161,4 +175,3 @@ export function BanishmentRevealCard({
     </div>
   );
 }
-

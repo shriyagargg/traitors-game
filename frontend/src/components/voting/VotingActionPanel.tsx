@@ -1,35 +1,45 @@
 "use client";
 
 import React, { useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
-import { CheckCircle2, Loader2, Lock, Scale, ArrowRight } from "lucide-react";
+import { CheckCircle2, Loader2, Lock } from "lucide-react";
 import { VotingTarget } from "@/types/votingPhase";
 
 interface VotingActionPanelProps {
   targets: VotingTarget[];
   selectedTargetId: string | null;
   isSubmitted: boolean;
+  isVotingOpen?: boolean;
   submittedTargetName: string | null;
   onSelectTarget: (id: string) => void;
   onSubmitVote: () => Promise<{ success: boolean; message: string }>;
+  roomCode?: string;
+  roundNumber?: number;
 }
 
 export function VotingActionPanel({
   targets,
   selectedTargetId,
   isSubmitted,
+  isVotingOpen = true,
   submittedTargetName,
   onSelectTarget,
   onSubmitVote,
+  roomCode = "",
+  roundNumber = 1,
 }: VotingActionPanelProps) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = async () => {
     if (loading || isSubmitted || !selectedTargetId) return;
     setLoading(true);
-    await onSubmitVote();
-    setLoading(false);
+    setError("");
+    try {
+      const result = await onSubmitVote();
+      if (!result.success) setError(result.message || "Vote could not be submitted.");
+    } catch {
+      setError("Vote could not be submitted. Please retry.");
+    } finally { setLoading(false); }
   };
 
   return (
@@ -47,56 +57,59 @@ export function VotingActionPanel({
       {/* 2. Selectable Eligible Targets (Living Players Excluding Self) */}
       {!isSubmitted ? (
         <div className="w-full my-auto py-2">
-          <div className="flex flex-wrap items-center justify-center gap-5 sm:gap-7 md:gap-9">
-            {targets.map((player) => {
-              const isSelected = selectedTargetId === player.id;
+          {targets.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-6 text-center">
+              <Loader2 className="w-6 h-6 animate-spin text-gold-antique/60 mb-2" />
+              <p className="text-xs sm:text-sm font-sans text-text-secondary/70">
+                Convening council members for ballot...
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-center gap-5 sm:gap-7 md:gap-9">
+              {targets.map((player) => {
+                const isSelected = selectedTargetId === player.id;
 
-              return (
-                <div
-                  key={player.id}
-                  onClick={() => onSelectTarget(player.id)}
-                  className="flex flex-col items-center cursor-pointer group transition-transform active:scale-95"
-                >
-                  {/* Circular Avatar */}
+                return (
                   <div
-                    className={`relative w-14 h-14 rounded-full overflow-hidden transition-all duration-300 ${
-                      isSelected
-                        ? "ring-2 ring-gold-antique shadow-[0_0_20px_rgba(212,175,55,0.5)]"
-                        : "ring-1 ring-white/15 group-hover:ring-white/40"
-                    }`}
+                    key={player.id}
+                    onClick={() => isVotingOpen && onSelectTarget(player.id)}
+                    className={`flex flex-col items-center group transition-transform ${isVotingOpen ? "cursor-pointer active:scale-95" : "cursor-not-allowed opacity-60"}`}
                   >
-                    <Image
-                      src={player.avatarUrl}
-                      alt={player.name}
-                      fill
-                      unoptimized
-                      className="object-cover"
-                    />
-                  </div>
+                    {/* Circular Avatar */}
+                    <div
+                      className={`relative w-14 h-14 rounded-full overflow-hidden transition-all duration-300 ${
+                        isSelected
+                          ? "ring-2 ring-gold-antique shadow-[0_0_20px_rgba(212,175,55,0.5)]"
+                          : "ring-1 ring-white/15 group-hover:ring-white/40"
+                      }`}
+                    >
+                      {player.avatarUrl ? <img src={player.avatarUrl} alt={player.name} className="h-full w-full object-cover" /> : <span className="flex h-full w-full items-center justify-center bg-[#2a1d2d] text-sm font-bold text-white">{player.name.slice(0, 2).toUpperCase()}</span>}
+                    </div>
 
-                  {/* Player Name */}
-                  <span
-                    className={`text-xs sm:text-sm font-semibold mt-2.5 transition-colors ${
-                      isSelected ? "text-gold-light" : "text-[#F5EEDC]"
-                    }`}
-                  >
-                    {player.name}
-                  </span>
+                    {/* Player Name */}
+                    <span
+                      className={`text-xs sm:text-sm font-semibold mt-2.5 transition-colors ${
+                        isSelected ? "text-gold-light" : "text-[#F5EEDC]"
+                      }`}
+                    >
+                      {player.name}
+                    </span>
 
-                  {/* Radio Indicator */}
-                  <div className="mt-2 flex items-center justify-center">
-                    {isSelected ? (
-                      <div className="w-4 h-4 rounded-full border border-gold-light bg-gold-antique shadow-[0_0_8px_rgba(212,175,55,0.8)] flex items-center justify-center">
-                        <div className="w-1.5 h-1.5 rounded-full bg-white" />
-                      </div>
-                    ) : (
-                      <div className="w-4 h-4 rounded-full border border-white/25 bg-transparent group-hover:border-white/50" />
-                    )}
+                    {/* Radio Indicator */}
+                    <div className="mt-2 flex items-center justify-center">
+                      {isSelected ? (
+                        <div className="w-4 h-4 rounded-full border border-gold-light bg-gold-antique shadow-[0_0_8px_rgba(212,175,55,0.8)] flex items-center justify-center">
+                          <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                        </div>
+                      ) : (
+                        <div className="w-4 h-4 rounded-full border border-white/25 bg-transparent group-hover:border-white/50" />
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       ) : (
         /* Vote Submitted Waiting State */
@@ -108,7 +121,7 @@ export function VotingActionPanel({
             Vote Submitted
           </h3>
           <p className="text-xs sm:text-sm font-sans text-text-secondary mt-1.5 max-w-md leading-relaxed">
-            Your vote has been recorded. Waiting for other players...
+            {isVotingOpen ? "Your vote has been recorded. Waiting for other players..." : "Voting is closed. Results are being tallied."}
           </p>
           {submittedTargetName && (
             <span className="mt-3.5 px-3.5 py-1 rounded-full bg-[#1A0E1C] border border-gold-antique/30 text-xs font-mono text-gold-light">
@@ -120,26 +133,17 @@ export function VotingActionPanel({
             <span>Ballots remain confidential until voting concludes</span>
           </div>
 
-          <div className="mt-5">
-            <Link
-              href="/game/voting-results"
-              className="py-2.5 px-6 rounded-xl bg-gradient-to-r from-gold-light via-[#F3DEAA] to-gold-antique hover:from-gold-antique hover:to-gold-light text-[#09060D] font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(242,216,154,0.3)] hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <Scale className="w-3.5 h-3.5 text-[#09060D]" />
-              <span>Proceed to Vote Tally &amp; Banishment</span>
-              <ArrowRight className="w-3.5 h-3.5 text-[#09060D]" />
-            </Link>
-          </div>
         </div>
       )}
 
       {/* 3. Submit Vote Button */}
       {!isSubmitted && (
         <div className="w-full sm:w-72 mt-6">
+          {error && <p role="alert" className="mb-2 text-xs text-red-300">{error}</p>}
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={!selectedTargetId || loading}
+            disabled={!selectedTargetId || loading || !isVotingOpen}
             className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-gold-light via-[#F3DEAA] to-gold-antique hover:from-gold-antique hover:to-gold-light text-[#09060D] font-bold text-sm sm:text-base flex items-center justify-center gap-2.5 transition-all duration-300 shadow-[0_0_25px_rgba(242,216,154,0.35)] hover:shadow-[0_0_35px_rgba(212,175,55,0.45)] hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {loading ? (

@@ -9,7 +9,7 @@ import { MatchStatsSummary } from "./MatchStatsSummary";
 import { VictoryActionButtons } from "./VictoryActionButtons";
 import { useVictory } from "@/hooks/useVictory";
 import { useGamePhaseGuard } from "@/hooks/useGamePhaseGuard";
-import { MOCK_PLAYER_PROFILE } from "@/services/dashboard";
+import { getPlayerSession } from "@/services/playerSession";
 import { VictoryOutcome } from "@/types/victory";
 import { Radio, Shield, Skull } from "lucide-react";
 
@@ -19,7 +19,7 @@ interface VictoryContainerProps {
 }
 
 export function VictoryContainer({
-  roomCode = "A7K4D9",
+  roomCode = "",
   initialOutcome = "FAITHFUL_VICTORY",
 }: VictoryContainerProps) {
   useGamePhaseGuard(roomCode, "GAME_OVER");
@@ -46,7 +46,7 @@ export function VictoryContainer({
       />
 
       {/* 2. Top Navigation Bar */}
-      <DashboardHeader activeNav="dashboard" profile={MOCK_PLAYER_PROFILE} />
+      <DashboardHeader activeNav="dashboard" profile={{ name: getPlayerSession().name, email: getPlayerSession().email || "", avatarUrl: getPlayerSession().avatarUrl, roleBadge: "" }} />
 
       {/* 3. Main Victory Content Layout */}
       <main className="flex-1 w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-5 z-10 flex flex-col justify-between gap-6">

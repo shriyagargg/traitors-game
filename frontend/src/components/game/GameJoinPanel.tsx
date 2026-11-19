@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Users, Key, ArrowRight, Loader2, User } from "lucide-react";
+import { Users, Key, ArrowRight, Loader2 } from "lucide-react";
 import { joinRoom, RoomOperationResult } from "@/services/rooms";
 import { getPlayerSession } from "@/services/playerSession";
 
@@ -14,12 +14,6 @@ interface JoinGamePanelProps {
 export function JoinGamePanel({ onSwitchToCreate, onRoomJoined }: JoinGamePanelProps) {
   const router = useRouter();
   const [roomCode, setRoomCode] = useState("");
-  const [playerName, setPlayerName] = useState(() => {
-    if (typeof window !== "undefined") {
-      return getPlayerSession().name;
-    }
-    return "Guest";
-  });
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [result, setResult] = useState<RoomOperationResult | null>(null);
@@ -35,6 +29,12 @@ export function JoinGamePanel({ onSwitchToCreate, onRoomJoined }: JoinGamePanelP
     setErrorMessage(null);
     setResult(null);
 
+    const session = getPlayerSession();
+    if (!session.accountToken) {
+      router.push(`/auth/register?returnTo=${encodeURIComponent(`/lobby/join?code=${roomCode}`)}`);
+      return;
+    }
+
     if (!roomCode.trim()) {
       setErrorMessage("Please provide a valid room code.");
       return;
@@ -42,7 +42,7 @@ export function JoinGamePanel({ onSwitchToCreate, onRoomJoined }: JoinGamePanelP
 
     setLoading(true);
     try {
-      const res = await joinRoom(roomCode, playerName);
+      const res = await joinRoom(roomCode);
       setResult(res);
       if (res.success) {
         if (onRoomJoined) {
@@ -50,7 +50,7 @@ export function JoinGamePanel({ onSwitchToCreate, onRoomJoined }: JoinGamePanelP
         }
         setTimeout(() => {
           router.push(`/lobby?code=${res.roomCode || roomCode}`);
-        }, 700);
+        }, 0);
       } else {
         setErrorMessage(res.message);
       }
@@ -62,17 +62,17 @@ export function JoinGamePanel({ onSwitchToCreate, onRoomJoined }: JoinGamePanelP
   };
 
   return (
-    <div className="w-full max-w-xl mx-auto rounded-3xl bg-[#120A14]/85 border border-gold-antique/30 backdrop-blur-xl p-7 sm:p-9 shadow-[0_4px_30px_rgba(20,9,28,0.5)] z-10 relative">
+    <div className="w-full max-w-lg mx-auto rounded-2xl bg-[#19151d] border border-white/10 p-6 sm:p-7 z-10 relative">
       {/* Header */}
       <div className="flex flex-col items-center justify-center text-center mb-6">
         <div className="w-12 h-12 rounded-2xl bg-[#1A0E1C] border border-gold-antique/30 flex items-center justify-center mb-3">
           <Key className="w-6 h-6 text-gold-antique" />
         </div>
-        <h2 className="font-cormorant text-2xl sm:text-3xl font-normal text-text-main tracking-wide">
+        <h2 className="text-xl font-semibold text-white tracking-tight">
           Join an Existing Game
         </h2>
-        <p className="text-xs sm:text-sm font-sans text-text-secondary mt-1">
-          Enter your room code and join the mystery.
+        <p className="text-sm text-[#b9b0bd] mt-1">
+          Signed-in players can join an open room with its invitation code.
         </p>
       </div>
 
@@ -85,7 +85,7 @@ export function JoinGamePanel({ onSwitchToCreate, onRoomJoined }: JoinGamePanelP
       {result && result.success && (
         <div className="mb-5 rounded-xl border border-emerald-500/40 bg-emerald-950/30 px-4 py-3 text-xs font-sans text-emerald-200 text-center">
           <p className="font-semibold text-emerald-300">
-            ✓ Council Admission Granted [{result.roomCode}]
+            ✓ Room joined [{result.roomCode}]
           </p>
           <p className="text-emerald-200/80 mt-0.5">{result.message}</p>
         </div>
@@ -95,27 +95,9 @@ export function JoinGamePanel({ onSwitchToCreate, onRoomJoined }: JoinGamePanelP
       <form onSubmit={handleJoinSubmit} className="space-y-4">
         <div>
           <label className="block text-xs font-sans text-text-secondary mb-1.5 text-left uppercase tracking-wider">
-            Your Name
-          </label>
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#170C1B]/90 border border-gold-antique/25 focus-within:border-gold-antique transition-all">
-            <User className="w-4 h-4 text-gold-antique/70 shrink-0" />
-            <input
-              type="text"
-              placeholder="YOUR NAME"
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-              maxLength={24}
-              required
-              className="w-full bg-transparent text-sm font-sans text-text-main focus:outline-none"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs font-sans text-text-secondary mb-1.5 text-left uppercase tracking-wider">
             Enter Room Code
           </label>
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#170C1B]/90 border border-gold-antique/35 focus-within:border-gold-antique focus-within:shadow-[0_0_20px_rgba(212,175,55,0.2)] transition-all">
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#100d13] border border-white/10 focus-within:border-[#a78ab2] transition-all">
             <Users className="w-5 h-5 text-gold-antique/70 shrink-0" />
             <input
               type="text"
@@ -133,7 +115,7 @@ export function JoinGamePanel({ onSwitchToCreate, onRoomJoined }: JoinGamePanelP
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-gold-light via-[#F3DEAA] to-gold-antique hover:from-gold-antique hover:to-gold-light text-background font-semibold text-sm sm:text-base flex items-center justify-center gap-2.5 transition-all duration-300 shadow-[0_0_25px_rgba(242,216,154,0.35)] hover:shadow-[0_0_30px_rgba(212,175,55,0.45)] hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60"
+          className="w-full py-3.5 px-6 rounded-xl bg-[#e1cbd4] hover:from-gold-antique hover:to-gold-light text-[#211c25] font-semibold text-sm sm:text-base flex items-center justify-center gap-2.5 transition-all duration-300 shadow-[0_0_25px_rgba(242,216,154,0.35)] hover:shadow-[0_0_30px_rgba(212,175,55,0.45)] hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60"
         >
           {loading ? (
             <>

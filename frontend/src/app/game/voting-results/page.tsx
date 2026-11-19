@@ -6,8 +6,8 @@ import { VotingResultsContainer } from "@/components/voting-results/VotingResult
 
 function VotingResultsPageContent() {
   const searchParams = useSearchParams();
-  const roomCode = searchParams.get("room") || "A7K4D9";
-  const roundNumber = parseInt(searchParams.get("round") || "2", 10);
+  const roomCode = searchParams.get("room") || "";
+  const roundNumber = parseInt(searchParams.get("round") || "1", 10);
 
   return <VotingResultsContainer roomCode={roomCode} roundNumber={roundNumber} />;
 }

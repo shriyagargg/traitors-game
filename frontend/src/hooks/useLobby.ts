@@ -6,8 +6,8 @@ import { LobbyRoomState } from "@/types/lobby";
 import { PlayerCapacity } from "@/services/rooms";
 
 export function useLobby(
-  roomCode = "A7K4D9",
-  initialRoomName = "Somya's Game Room",
+  roomCode = "",
+  initialRoomName = "Council Chamber",
   initialCapacity: PlayerCapacity = 8,
   isPrivate = false
 ) {
@@ -53,5 +53,8 @@ export function useLobby(
     updateRoomName: (name: string) => service.updateRoomName(name),
     validateGameStart: () => service.validateGameStart(),
     startGame: () => service.startGame(),
+    addTestPlayers: (count?: number) => service.addTestPlayers(count),
+    removeTestPlayer: (playerId: string) => service.removeTestPlayer(playerId),
+    leaveLobby: () => service.leaveLobby(),
   };
 }

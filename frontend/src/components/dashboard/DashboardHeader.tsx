@@ -1,23 +1,22 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { getPlayerSession, clearPlayerSession } from "@/services/playerSession";
 import Link from "next/link";
-import Image from "next/image";
 import {
   Home,
   Gamepad2,
   Users,
   BookOpen,
-  Bell,
   ChevronDown,
   User as UserIcon,
   Settings as SettingsIcon,
   LogOut,
-  X,
   Menu,
 } from "lucide-react";
 import { CrownIcon } from "../CrownIcon";
-import { MOCK_NOTIFICATIONS, PlayerProfile } from "@/services/dashboard";
+import { PlayerProfile } from "@/services/dashboard";
 
 interface DashboardHeaderProps {
   activeNav?: "dashboard" | "create" | "join" | "how-to-play";
@@ -27,21 +26,29 @@ interface DashboardHeaderProps {
 
 export function DashboardHeader({
   activeNav = "dashboard",
-  profile,
+  profile: initialProfile,
   onToggleMobileSidebar,
 }: DashboardHeaderProps) {
-  const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+  const [profile, setProfile] = useState<PlayerProfile>(initialProfile || { name: "", email: "", avatarUrl: "" });
+  const router = useRouter();
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
-  const markAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
+  useEffect(() => {
+    try {
+      const session = getPlayerSession();
+      if (session?.name) {
+        setProfile({
+          name: session.name,
+          email: session.email || "",
+          avatarUrl: session.avatarUrl || "",
+          roleBadge: initialProfile?.roleBadge || "Council Initiate",
+        });
+      }
+    } catch {}
+  }, [initialProfile]);
 
   return (
-    <header className="w-full border-b border-gold-antique/20 bg-[#09060D]/90 backdrop-blur-md sticky top-0 z-40 px-4 sm:px-8 py-3.5 flex items-center justify-between">
+    <header className="w-full border-b border-white/10 bg-[#100d13]/95 backdrop-blur sticky top-0 z-40 px-4 sm:px-8 py-3 flex items-center justify-between">
       {/* 1. Left: Brand & Mobile Sidebar Toggle */}
       <div className="flex items-center gap-3">
         {onToggleMobileSidebar && (
@@ -56,12 +63,12 @@ export function DashboardHeader({
 
         <Link href="/" className="flex flex-col text-left group">
           <div className="flex items-center gap-2">
-            <CrownIcon className="w-5 h-5 text-gold-antique group-hover:scale-105 transition-transform" />
-            <span className="font-cinzel text-base sm:text-lg font-bold tracking-[0.16em] text-gold-gradient">
+            <CrownIcon className="w-5 h-5 text-[#c4a6d2] group-hover:scale-105 transition-transform" />
+            <span className="text-sm font-bold tracking-[0.12em] text-white">
               AI TRAITORS
             </span>
           </div>
-          <span className="font-cinzel text-[9px] tracking-[0.3em] text-gold-antique/70 pl-7">
+          <span className="text-[9px] tracking-[0.24em] text-[#a89fac] pl-7">
             THE ARCHITECT
           </span>
         </Link>
@@ -72,138 +79,75 @@ export function DashboardHeader({
         {/* Dashboard */}
         <Link
           href="/dashboard"
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition duration-200 ${
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition duration-200 ${
             activeNav === "dashboard"
-              ? "bg-[#1A0E1C] border border-gold-antique/40 text-gold-light shadow-[0_0_12px_rgba(212,175,55,0.15)]"
-              : "text-text-secondary hover:text-text-main hover:bg-[#120A14]"
+              ? "bg-white/10 border border-white/10 text-white"
+              : "text-[#b9b0bd] hover:text-white hover:bg-white/5"
           }`}
         >
-          <Home className="w-4 h-4 text-gold-antique" />
+          <Home className="w-4 h-4 text-[#c4a6d2]" />
           <span>Dashboard</span>
         </Link>
 
         {/* Create Game */}
         <Link
           href="/lobby/create"
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition duration-200 ${
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition duration-200 ${
             activeNav === "create"
-              ? "bg-[#1A0E1C] border border-gold-antique/40 text-gold-light shadow-[0_0_12px_rgba(212,175,55,0.15)]"
-              : "text-text-secondary hover:text-text-main hover:bg-[#120A14]"
+              ? "bg-white/10 border border-white/10 text-white"
+              : "text-[#b9b0bd] hover:text-white hover:bg-white/5"
           }`}
         >
-          <Gamepad2 className="w-4 h-4 text-gold-antique" />
+          <Gamepad2 className="w-4 h-4 text-[#c4a6d2]" />
           <span>Create Game</span>
         </Link>
 
         {/* Join Game */}
         <Link
           href="/lobby/join"
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition duration-200 ${
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition duration-200 ${
             activeNav === "join"
-              ? "bg-[#1A0E1C] border border-gold-antique/40 text-gold-light shadow-[0_0_12px_rgba(212,175,55,0.15)]"
-              : "text-text-secondary hover:text-text-main hover:bg-[#120A14]"
+              ? "bg-white/10 border border-white/10 text-white"
+              : "text-[#b9b0bd] hover:text-white hover:bg-white/5"
           }`}
         >
-          <Users className="w-4 h-4 text-gold-antique" />
+          <Users className="w-4 h-4 text-[#c4a6d2]" />
           <span>Join Game</span>
         </Link>
 
         {/* How to Play */}
         <Link
           href="/#how-to-play"
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition duration-200 ${
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition duration-200 ${
             activeNav === "how-to-play"
-              ? "bg-[#1A0E1C] border border-gold-antique/40 text-gold-light shadow-[0_0_12px_rgba(212,175,55,0.15)]"
-              : "text-text-secondary hover:text-text-main hover:bg-[#120A14]"
+              ? "bg-white/10 border border-white/10 text-white"
+              : "text-[#b9b0bd] hover:text-white hover:bg-white/5"
           }`}
         >
-          <BookOpen className="w-4 h-4 text-gold-antique" />
+          <BookOpen className="w-4 h-4 text-[#c4a6d2]" />
           <span>How to Play</span>
         </Link>
       </nav>
 
       {/* 3. Right: Notifications & Profile Avatar */}
       <div className="flex items-center gap-3 sm:gap-4 relative">
-        {/* Notification Bell Button */}
-        <div className="relative">
-          <button
-            onClick={() => {
-              setShowNotifications(!showNotifications);
-              setShowProfileMenu(false);
-            }}
-            className="p-2 rounded-xl bg-[#120A14] hover:bg-[#1A0E1C] border border-gold-antique/20 text-text-secondary hover:text-gold-light transition duration-200 relative"
-            aria-label="View notifications"
-          >
-            <Bell className="w-4 h-4 text-gold-antique" />
-            {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_#f43f5e]" />
-            )}
-          </button>
-
-          {/* Notifications Dropdown */}
-          {showNotifications && (
-            <div className="absolute right-0 mt-3 w-80 sm:w-88 rounded-2xl bg-[#120A14]/95 border border-gold-antique/30 backdrop-blur-2xl p-4 shadow-2xl z-50 animate-fade-in">
-              <div className="flex items-center justify-between pb-3 border-b border-gold-antique/15">
-                <span className="font-cinzel text-xs font-bold tracking-wider text-text-main">
-                  Council Notifications
-                </span>
-                {unreadCount > 0 && (
-                  <button
-                    onClick={markAllRead}
-                    className="text-[11px] font-sans text-gold-antique hover:text-gold-light"
-                  >
-                    Mark all read
-                  </button>
-                )}
-              </div>
-              <div className="flex flex-col gap-2.5 py-3 max-h-64 overflow-y-auto">
-                {notifications.map((item) => (
-                  <div
-                    key={item.id}
-                    className={`p-2.5 rounded-xl border text-xs font-sans transition ${
-                      item.read
-                        ? "bg-[#170C1B]/40 border-gold-antique/10 text-text-secondary"
-                        : "bg-[#1A0E1C] border-gold-antique/30 text-text-main font-medium shadow-sm"
-                    }`}
-                  >
-                    <p>{item.title}</p>
-                    <span className="text-[10px] text-text-secondary/70 mt-1 block">
-                      {item.time}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
         {/* Player Profile Avatar & Dropdown */}
         <div className="relative">
           <button
             onClick={() => {
               setShowProfileMenu(!showProfileMenu);
-              setShowNotifications(false);
             }}
             className="flex items-center gap-2.5 p-1 rounded-full hover:bg-[#120A14] transition"
             aria-label="User profile settings"
           >
-            <div className="relative w-8 h-8 rounded-full border border-gold-antique/70 overflow-hidden shadow-[0_0_10px_rgba(212,175,55,0.3)]">
-              <Image
-                src={profile.avatarUrl}
-                alt={profile.name}
-                fill
-                sizes="32px"
-                unoptimized
-                className="object-cover"
-              />
-            </div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-[#28232d] text-xs font-semibold text-white">{profile.name?.slice(0, 1).toUpperCase() || "?"}</div>
             <ChevronDown className="w-3.5 h-3.5 text-text-secondary" />
           </button>
 
           {/* Profile Dropdown Menu */}
           {showProfileMenu && (
-            <div className="absolute right-0 mt-3 w-56 rounded-2xl bg-[#120A14]/95 border border-gold-antique/30 backdrop-blur-2xl p-3 shadow-2xl z-50 animate-fade-in">
-              <div className="px-3 py-2 border-b border-gold-antique/15">
+            <div className="absolute right-0 mt-3 w-56 rounded-lg bg-[#211c25] border border-white/10 p-3 shadow-xl z-50 animate-fade-in">
+              <div className="px-3 py-2 border-b border-white/10">
                 <p className="font-cinzel text-xs font-bold text-text-main">{profile.name}</p>
                 <p className="text-[11px] font-sans text-text-secondary/70">{profile.email}</p>
               </div>
@@ -212,27 +156,27 @@ export function DashboardHeader({
                 <Link
                   href="/dashboard/profile"
                   onClick={() => setShowProfileMenu(false)}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-sans text-text-secondary hover:text-gold-light hover:bg-[#1A0E1C] transition"
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-sans text-text-secondary hover:text-gold-light hover:bg-[#1A0E1C] transition"
                 >
-                  <UserIcon className="w-4 h-4 text-gold-antique" />
+                  <UserIcon className="w-4 h-4 text-[#c4a6d2]" />
                   <span>My Profile</span>
                 </Link>
                 <Link
                   href="/dashboard/settings"
                   onClick={() => setShowProfileMenu(false)}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-sans text-text-secondary hover:text-gold-light hover:bg-[#1A0E1C] transition"
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-sans text-text-secondary hover:text-gold-light hover:bg-[#1A0E1C] transition"
                 >
-                  <SettingsIcon className="w-4 h-4 text-gold-antique" />
+                  <SettingsIcon className="w-4 h-4 text-[#c4a6d2]" />
                   <span>Settings</span>
                 </Link>
-                <Link
-                  href="/auth/login"
-                  onClick={() => setShowProfileMenu(false)}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-sans text-rose-400 hover:text-rose-300 hover:bg-rose-950/20 transition border-t border-gold-antique/10 mt-1 pt-2"
+                <button
+                  type="button"
+                  onClick={() => { clearPlayerSession(); setShowProfileMenu(false); router.replace("/auth/login"); }}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-sans text-rose-400 hover:text-rose-300 hover:bg-rose-950/20 transition border-t border-gold-antique/10 mt-1 pt-2"
                 >
                   <LogOut className="w-4 h-4" />
                   <span>Sign Out</span>
-                </Link>
+                </button>
               </div>
             </div>
           )}

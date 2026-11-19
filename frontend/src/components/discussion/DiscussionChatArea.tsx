@@ -19,7 +19,8 @@ interface DiscussionChatAreaProps {
   formattedTimer: string;
   announcement: ArchitectAnnouncement;
   messages: DiscussionMessage[];
-  onSendMessage: (text: string) => void;
+  onSendMessage: (text: string) => Promise<{ success: boolean; message?: string }>;
+  onProceedToVoting?: () => void;
 }
 
 export function DiscussionChatArea({
@@ -29,8 +30,11 @@ export function DiscussionChatArea({
   announcement,
   messages,
   onSendMessage,
+  onProceedToVoting,
 }: DiscussionChatAreaProps) {
   const [inputValue, setInputValue] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendStatus, setSendStatus] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -41,11 +45,22 @@ export function DiscussionChatArea({
     scrollToBottom();
   }, [messages]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (inputValue.trim()) {
-      onSendMessage(inputValue.trim());
-      setInputValue("");
+    if (!inputValue.trim() || sending) return;
+    setSending(true);
+    setSendStatus("Sending…");
+    try {
+      const result = await onSendMessage(inputValue.trim());
+      if (result?.success) {
+        setInputValue("");
+        setSendStatus("Sent");
+      } else setSendStatus(result?.message || "Message failed. Please retry.");
+    } catch {
+      setSendStatus("Message failed. Please retry.");
+    } finally {
+      setSending(false);
+      window.setTimeout(() => setSendStatus(""), 3500);
     }
   };
 
@@ -76,6 +91,17 @@ export function DiscussionChatArea({
             </span>
           </div>
 
+          {onProceedToVoting && (
+            <button
+              type="button"
+              onClick={onProceedToVoting}
+              className="px-3 py-1.5 rounded-xl bg-gold-light hover:bg-gold-antique text-[#09060D] text-xs font-bold transition shadow-sm active:scale-95 flex items-center gap-1.5"
+              title="Skip discussion and proceed directly to voting"
+            >
+              <Vote className="w-3.5 h-3.5" />
+              <span>Vote Now →</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -121,13 +147,13 @@ export function DiscussionChatArea({
             <div key={msg.id} className="flex items-start gap-3 text-left group">
               {/* Circular Avatar */}
               <div className="relative w-8 h-8 rounded-full overflow-hidden shrink-0 ring-1 ring-white/10 mt-0.5">
-                <Image
+                {msg.avatarUrl ? <Image
                   src={msg.avatarUrl}
-                  alt={msg.senderName}
+                  alt={msg.senderName || "Player"}
                   fill
                   unoptimized
                   className="object-cover"
-                />
+                /> : <span className="flex h-full w-full items-center justify-center rounded-full bg-[#2a1d2d] text-xs font-bold text-white">{msg.senderName.slice(0, 2).toUpperCase()}</span>}
               </div>
 
               {/* Message Body */}
@@ -136,6 +162,7 @@ export function DiscussionChatArea({
                   <span className="text-xs sm:text-sm font-semibold text-[#F5EEDC]">
                     {msg.senderName}
                   </span>
+                  {msg.isAI && <span className="rounded border border-purple-400/30 bg-purple-950/40 px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase tracking-wide text-purple-200">Test Player</span>}
                   <span className="text-[10px] text-text-secondary/40 font-mono">
                     {msg.timestamp}
                   </span>
@@ -171,6 +198,7 @@ export function DiscussionChatArea({
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
+            onFocus={() => setSendStatus("")}
             placeholder="Type your message..."
             maxLength={180}
             className="w-full bg-[#1A0E1C] border border-gold-antique/30 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-[#F5EEDC] placeholder-text-secondary/40 focus:outline-none focus:border-gold-antique focus:ring-1 focus:ring-gold-antique/40 transition"
@@ -180,13 +208,14 @@ export function DiscussionChatArea({
         {/* Gold Send Button */}
         <button
           type="submit"
-          disabled={!inputValue.trim()}
+          disabled={!inputValue.trim() || sending}
           className="p-2.5 sm:px-4 rounded-xl bg-gradient-to-r from-gold-light via-[#F3DEAA] to-gold-antique hover:from-gold-antique hover:to-gold-light text-[#09060D] font-bold transition-all shadow-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center shrink-0"
           title="Send message"
         >
           <Send className="w-4 h-4 stroke-[2.5]" />
         </button>
       </form>
+      {sendStatus && <p role="status" aria-live="polite" className={`mt-1 text-right text-[10px] ${sendStatus === "Sent" ? "text-emerald-300" : sendStatus.startsWith("Sending") ? "text-text-secondary" : "text-red-300"}`}>{sendStatus}</p>}
     </div>
   );
 }

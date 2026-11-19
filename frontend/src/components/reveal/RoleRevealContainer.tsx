@@ -14,7 +14,7 @@ import {
   fetchSecretIdentity,
 } from "@/services/roleRevealService";
 import { useGamePhaseGuard } from "@/hooks/useGamePhaseGuard";
-import { getWsBaseUrl } from "@/services/rooms";
+import { getWsBaseUrl, getApiBaseUrl } from "@/services/rooms";
 import { getPlayerSession } from "@/services/playerSession";
 import { ShieldAlert, Sparkles, Radio } from "lucide-react";
 
@@ -24,22 +24,23 @@ interface RoleRevealContainerProps {
 }
 
 export function RoleRevealContainer({
-  initialRoomCode = "A7K4D9",
+  initialRoomCode = "",
   initialRole = "traitor",
 }: RoleRevealContainerProps) {
   useGamePhaseGuard(initialRoomCode, "ROLE_REVEAL");
   const router = useRouter();
 
   const [identity, setIdentity] = useState<PlayerSecretIdentity>({
-    playerId: "p_somya",
-    playerName: "Somya",
+    playerId: "",
+    playerName: "",
     roomCode: initialRoomCode,
     roundNumber: 1,
     role: initialRole,
-    isMock: true,
+    isMock: false,
   });
 
   const [loading, setLoading] = useState(true);
+  const [identityError, setIdentityError] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -47,6 +48,7 @@ export function RoleRevealContainer({
       if (isMounted) {
         setIdentity(data);
         setLoading(false);
+        setIdentityError(data.isMock);
       }
     });
 
@@ -54,18 +56,20 @@ export function RoleRevealContainer({
     let ws: WebSocket | null = null;
     try {
       const session = getPlayerSession(initialRoomCode);
-      const wsUrl = `${getWsBaseUrl()}/api/v1/ws/game/${initialRoomCode}?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}`;
-      ws = new WebSocket(wsUrl);
-      ws.onmessage = (event) => {
-        try {
-          const packet = JSON.parse(event.data);
-          if (packet.type === "PHASE_CHANGED" && packet.payload?.phase === "NIGHT") {
-            router.push(`/game/night?room=${initialRoomCode}`);
+      if (session.token) {
+        const wsUrl = `${getWsBaseUrl()}/api/v1/ws/game/${initialRoomCode}?player_id=${session.id}&token=${encodeURIComponent(session.token)}&account_token=${encodeURIComponent(session.accountToken || "")}`;
+        ws = new WebSocket(wsUrl);
+        ws.onmessage = (event) => {
+          try {
+            const packet = JSON.parse(event.data);
+            if (packet.type === "PHASE_CHANGED" && packet.payload?.phase === "NIGHT") {
+              router.push(`/game/night?room=${initialRoomCode}`);
+            }
+          } catch {
+            // ignore
           }
-        } catch {
-          // ignore
-        }
-      };
+        };
+      }
     } catch {
       // ignore
     }
@@ -76,15 +80,21 @@ export function RoleRevealContainer({
     };
   }, [initialRoomCode, initialRole, router]);
 
-  // Handle switching role for evaluator/demo testing
-  const handleSwitchRole = (newRole: GameRole) => {
-    setIdentity((prev) => ({
-      ...prev,
-      role: newRole,
-    }));
-  };
-
-  const handleContinue = () => {
+  const handleContinue = async () => {
+    try {
+      const session = getPlayerSession(identity.roomCode);
+      await fetch(`${getApiBaseUrl()}/api/v1/game/${encodeURIComponent(identity.roomCode)}/advance-phase`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          player_id: session.id,
+          token: session.token,
+          account_token: session.accountToken,
+        }),
+      });
+    } catch {
+      // Backend will also advance on timer
+    }
     router.push(`/game/night?room=${identity.roomCode}&role=${identity.role}&round=${identity.roundNumber}`);
   };
 
@@ -149,9 +159,10 @@ export function RoleRevealContainer({
         </div>
 
         {/* Bottom Continue Action */}
-        <ContinueButton onContinue={handleContinue} disabled={loading} />
+        {identityError && <p className="text-sm text-rose-300 text-center" role="alert">The server could not load your role. Reconnect to continue.</p>}
+        <ContinueButton onContinue={handleContinue} disabled={loading || identityError} />
 
-        {/* Evaluator & Demonstration Role Switcher Toolbar */}
+        {/* Connection and role delivery status */}
         <div className="w-full flex flex-wrap items-center justify-between gap-3 pt-3 mt-4 border-t border-gold-antique/10 text-[11px] font-sans text-text-secondary/70">
           <div className="flex items-center gap-2">
             <Radio className="w-3.5 h-3.5 text-gold-antique" />
@@ -161,49 +172,6 @@ export function RoleRevealContainer({
             </span>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-text-secondary/50">Preview All Roles:</span>
-            <button
-              onClick={() => handleSwitchRole("traitor")}
-              className={`px-2.5 py-1 rounded text-[10px] font-semibold transition border ${
-                identity.role === "traitor"
-                  ? "bg-red-950/80 border-red-500 text-red-300 shadow-[0_0_8px_rgba(220,38,38,0.4)]"
-                  : "bg-[#1A0E1C] border-white/10 text-text-secondary hover:text-red-400"
-              }`}
-            >
-              Traitor
-            </button>
-            <button
-              onClick={() => handleSwitchRole("doctor")}
-              className={`px-2.5 py-1 rounded text-[10px] font-semibold transition border ${
-                identity.role === "doctor"
-                  ? "bg-emerald-950/80 border-emerald-500 text-emerald-300 shadow-[0_0_8px_rgba(16,185,129,0.4)]"
-                  : "bg-[#1A0E1C] border-white/10 text-text-secondary hover:text-emerald-400"
-              }`}
-            >
-              Doctor
-            </button>
-            <button
-              onClick={() => handleSwitchRole("detective")}
-              className={`px-2.5 py-1 rounded text-[10px] font-semibold transition border ${
-                identity.role === "detective"
-                  ? "bg-amber-950/80 border-gold-antique text-gold-light shadow-[0_0_8px_rgba(212,175,55,0.4)]"
-                  : "bg-[#1A0E1C] border-white/10 text-text-secondary hover:text-gold-light"
-              }`}
-            >
-              Detective
-            </button>
-            <button
-              onClick={() => handleSwitchRole("faithful")}
-              className={`px-2.5 py-1 rounded text-[10px] font-semibold transition border ${
-                identity.role === "faithful"
-                  ? "bg-blue-950/80 border-blue-500 text-blue-300 shadow-[0_0_8px_rgba(96,165,250,0.4)]"
-                  : "bg-[#1A0E1C] border-white/10 text-text-secondary hover:text-blue-400"
-              }`}
-            >
-              Faithful
-            </button>
-          </div>
         </div>
       </main>
     </div>

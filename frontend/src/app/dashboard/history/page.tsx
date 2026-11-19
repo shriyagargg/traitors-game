@@ -6,15 +6,16 @@ import { ArrowLeft, Users, ChevronRight, History } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { RoleAvatar } from "@/components/dashboard/RoleAvatar";
-import { MOCK_PLAYER_PROFILE, MOCK_RECENT_MATCHES } from "@/services/dashboard";
+import { useDashboardData } from "@/hooks/useDashboardData";
 
 export default function HistoryPage() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const { data, profile } = useDashboardData();
 
   return (
     <div className="min-h-screen bg-background text-text-main flex flex-col relative overflow-x-hidden">
       <DashboardHeader
-        profile={MOCK_PLAYER_PROFILE}
+        profile={profile}
         onToggleMobileSidebar={() => setMobileSidebarOpen(!mobileSidebarOpen)}
       />
 
@@ -45,32 +46,32 @@ export default function HistoryPage() {
             </div>
 
             <div className="flex flex-col gap-3">
-              {MOCK_RECENT_MATCHES.map((match) => (
+              {(data?.matches || []).map((match) => (
                 <div
                   key={match.id}
                   className="flex items-center justify-between p-4 rounded-2xl bg-[#170C1B] border border-gold-antique/20 hover:border-gold-antique/40 transition"
                 >
                   <div className="flex items-center gap-3.5">
-                    <RoleAvatar faction={match.winningTeam} className="w-10 h-10" />
+                    <RoleAvatar faction={match.winning_team as "Faithful" | "Traitor"} className="w-10 h-10" />
                     <div>
                       <p
                         className={`text-sm font-semibold ${
-                          match.winningTeam === "Faithful"
+                          match.winning_team === "Faithful"
                             ? "text-emerald-400"
                             : "text-rose-400"
                         }`}
                       >
-                        {match.winningTeam} Win
+                        {match.winning_team} Win
                       </p>
                       <p className="text-xs font-sans text-text-secondary">
-                        {match.date} • {match.duration}
+                        {match.played_at ? new Date(match.played_at).toLocaleDateString() : ""} • {Math.round(match.duration_seconds / 60)} min
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 text-xs font-sans text-text-secondary">
                     <span className="flex items-center gap-1">
                       <Users className="w-3.5 h-3.5" />
-                      {match.playerCount} Players
+                      {match.player_count} Players
                     </span>
                     <ChevronRight className="w-4 h-4 text-gold-antique" />
                   </div>

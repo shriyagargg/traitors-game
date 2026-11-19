@@ -23,7 +23,13 @@ export interface VotingPhaseState {
   selectedTargetId: string | null;
   isSubmitted: boolean;
   submittedTargetName: string | null;
-  connectionStatus: "connected" | "mock_preview";
+  connectionStatus: "connected" | "disconnected";
+  hasSynced?: boolean;
   isTimeUp?: boolean;
   allVotesRecorded?: boolean;
+  votesCast?: number;
+  eligibleVoters?: number;
+  serverPhase?: string;
+  allPlayers?: any[];
+  targets?: VotingTarget[];
 }

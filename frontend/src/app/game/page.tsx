@@ -9,8 +9,9 @@ import { MorningContainer } from "@/components/morning/MorningContainer";
 import { VotingContainer } from "@/components/voting/VotingContainer";
 import { VotingResultsContainer } from "@/components/voting-results/VotingResultsContainer";
 import { VictoryContainer } from "@/components/victory/VictoryContainer";
+import { RoleRevealContainer } from "@/components/reveal/RoleRevealContainer";
 import { getApiBaseUrl } from "@/services/rooms";
-import { getPlayerSession } from "@/services/playerSession";
+import { getPlayerSession, ensureRoomSession } from "@/services/playerSession";
 
 function GamePageContent() {
   const router = useRouter();
@@ -27,46 +28,58 @@ function GamePageContent() {
     phase === "results" ||
     searchParams.get("voting-results") !== null ||
     searchParams.get("results") !== null;
-  const isVictory =
-    phase === "victory" ||
-    phase === "endgame" ||
-    searchParams.get("victory") !== null;
+  const isVictory = phase === "victory" || phase === "endgame" || searchParams.get("victory") !== null;
 
   const [serverPhase, setServerPhase] = useState<string | null>(null);
+  const [phaseChecked, setPhaseChecked] = useState(false);
 
   useEffect(() => {
-    if (room && !phase) {
+    let alive = true;
+    if (room) {
       const apiUrl = getApiBaseUrl();
-      const session = getPlayerSession();
-      fetch(`${apiUrl}/api/v1/game/${room}/state?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}`)
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.phase) {
-            setServerPhase(data.phase);
+      (async () => {
+        let session = getPlayerSession(room);
+        if (!session.token && session.accountToken) {
+          session = await ensureRoomSession(room);
+        }
+        if (!alive) return;
+        try {
+          const r = await fetch(
+            `${apiUrl}/api/v1/game/${room}/state?player_id=${session.id}&token=${encodeURIComponent(session.token || "")}&account_token=${encodeURIComponent(session.accountToken || "")}`
+          );
+          if (r.ok) {
+            const data = await r.json();
+            if (alive && data.phase) {
+              setServerPhase(data.phase);
+            }
           }
-        })
-        .catch(() => {});
+        } catch {}
+        if (alive) setPhaseChecked(true);
+      })();
+    } else {
+      setPhaseChecked(true);
     }
+    return () => { alive = false; };
   }, [room, phase]);
 
-  if (isVictory || serverPhase === "GAME_OVER") {
-    return <VictoryContainer roomCode={room || "A7K4D9"} />;
+  if (room && serverPhase === "GAME_OVER") {
+    return <VictoryContainer roomCode={room} />;
   }
 
-  if (isVotingResults || serverPhase === "VOTING_RESULTS") {
-    return <VotingResultsContainer roomCode={room || "A7K4D9"} roundNumber={round} />;
+  if (room && serverPhase === "VOTING_RESULTS") {
+    return <VotingResultsContainer roomCode={room || ""} roundNumber={round} />;
   }
 
-  if (isVoting || serverPhase === "VOTING") {
-    return <VotingContainer roomCode={room || "A7K4D9"} roundNumber={round} />;
+  if (room && serverPhase === "VOTING") {
+    return <VotingContainer roomCode={room || ""} roundNumber={round} />;
   }
 
-  if (isMorning || serverPhase === "MORNING") {
-    return <MorningContainer roomCode={room || "A7K4D9"} roundNumber={round} />;
+  if (room && serverPhase === "MORNING") {
+    return <MorningContainer roomCode={room || ""} roundNumber={round} />;
   }
 
-  if (isNight || serverPhase === "NIGHT") {
-    return <NightContainer roomCode={room || "A7K4D9"} roundNumber={round} />;
+  if (room && serverPhase === "NIGHT") {
+    return <NightContainer roomCode={room || ""} roundNumber={round} />;
   }
 
   if (serverPhase === "LOBBY") {
@@ -77,15 +90,14 @@ function GamePageContent() {
   }
 
   if (serverPhase === "ROLE_REVEAL") {
-    if (typeof window !== "undefined") {
-      router.push(`/game/reveal?code=${room}`);
-    }
-    return <div className="min-h-screen bg-[#09060D]" />;
+    return <RoleRevealContainer initialRoomCode={room || ""} />;
   }
 
-  if (room) {
+  if (room && serverPhase === "DISCUSSION") {
     return <DiscussionContainer roomCode={room} roundNumber={round} />;
   }
+
+  if (room && !phaseChecked) return <div className="min-h-screen bg-[#09060D]" />;
 
   return <GameHubContainer initialTab="create" />;
 }

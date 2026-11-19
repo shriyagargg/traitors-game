@@ -6,14 +6,15 @@ import { RoleAvatar } from "./RoleAvatar";
 
 interface RecentMatchesProps {
   matches: RecentMatch[];
+  emptyMessage?: string;
 }
 
-export function RecentMatches({ matches }: RecentMatchesProps) {
+export function RecentMatches({ matches, emptyMessage = "No recent games yet." }: RecentMatchesProps) {
   return (
-    <div className="flex flex-col h-full justify-between">
+    <div className="flex flex-col gap-2">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-cormorant text-xl sm:text-2xl font-normal text-text-main tracking-wide">
+        <h3 className="text-lg font-semibold tracking-tight text-white">
           Recent Matches
         </h3>
         <Link
@@ -27,13 +28,14 @@ export function RecentMatches({ matches }: RecentMatchesProps) {
 
       {/* Match Rows */}
       <div className="flex flex-col gap-2.5">
+        {matches.length === 0 && <p className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-[#a89fac]">{emptyMessage}</p>}
         {matches.map((match) => {
           const isFaithfulWin = match.winningTeam === "Faithful";
 
           return (
             <div
               key={match.id}
-              className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-[#170C1B]/60 hover:bg-[#1C0E22] border border-gold-antique/15 hover:border-gold-antique/35 transition duration-200 cursor-pointer group"
+              className="flex items-center justify-between rounded-xl border border-white/5 bg-[#211c25] p-3 transition hover:border-white/15"
             >
               {/* Left: Avatar + Title & Meta */}
               <div className="flex items-center gap-3">

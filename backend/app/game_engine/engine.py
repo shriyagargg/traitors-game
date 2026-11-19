@@ -259,6 +259,8 @@ class GameEngine:
     def cast_vote(self, voter_id: str, target_id: str) -> bool:
         if self.state.phase != GamePhase.VOTING:
             return False
+        if self.state.phase_ends_at <= time.time():
+            return False
         if voter_id not in self.state.players or target_id not in self.state.players:
             return False
 
@@ -291,10 +293,14 @@ class GameEngine:
 
     def tally_votes(self) -> Tuple[Optional[Player], List[VoteTally]]:
         tallies_map: Dict[str, List[str]] = {}
-        for vote in self.state.votes:
+        alive_ids = {p.id for p in self.state.players.values() if p.status == PlayerStatus.ALIVE}
+        valid_votes = [v for v in self.state.votes
+                       if v.round_number == self.state.round_number
+                       and v.voter_id in alive_ids and v.target_id in alive_ids]
+        for vote in valid_votes:
             tallies_map.setdefault(vote.target_id, []).append(vote.voter_id)
 
-        total_votes = len(self.state.votes)
+        total_votes = len(valid_votes)
         tallies: List[VoteTally] = []
 
         banished_player: Optional[Player] = None
@@ -323,7 +329,7 @@ class GameEngine:
         self.state.vote_tally = tallies
 
         # Check for tie: if top 2 have equal votes, no banishment
-        if len(tallies) > 1 and tallies[0].votes_count == tallies[1].votes_count:
+        if total_votes == 0 or (len(tallies) > 1 and tallies[0].votes_count == tallies[1].votes_count):
             banished_player = None
             self.state.banished_player_id = None
         elif banished_player:
@@ -362,6 +368,8 @@ class GameEngine:
             p for p in self.state.players.values() if p.status == PlayerStatus.ALIVE
         ]
         alive_traitors = [p for p in alive_players if p.role == Role.TRAITOR]
+        if len(alive_players) <= 2:
+            return GameOutcome.TRAITOR_VICTORY if alive_traitors else GameOutcome.FAITHFUL_VICTORY
         alive_faithful = [p for p in alive_players if p.role != Role.TRAITOR]
 
         if len(alive_traitors) == 0:
@@ -378,7 +386,7 @@ class GameEngine:
     def get_remaining_seconds(self) -> int:
         if self.state.phase_ends_at <= 0:
             return 0
-        return max(0, int(self.state.phase_ends_at - time.time()))
+        return max(0, int(__import__("math").ceil(self.state.phase_ends_at - time.time())))
 
     def get_public_state(self, viewer_id: Optional[str] = None) -> dict:
         """
@@ -411,6 +419,7 @@ class GameEngine:
                     "is_host": p.is_host,
                     "is_ready": p.is_ready,
                     "is_connected": p.is_connected,
+                    "is_ai": p.is_ai,
                     "is_alive": p.status == PlayerStatus.ALIVE,
                     "slot_index": p.slot_index,
                     "role": p.role.value if can_see_role else "Unknown",
@@ -441,6 +450,10 @@ class GameEngine:
             "murdered_player_id": self.state.murdered_player_id,
             "architect_announcement": self.state.architect_announcement,
             "total_votes_cast": len(self.state.votes),
+            "has_voted": bool(viewer_id and any(
+                vote.voter_id == viewer_id and vote.round_number == self.state.round_number
+                for vote in self.state.votes
+            )),
             "vote_tally": ([{"target_id": tally.target_id,
                              "target_name": tally.target_name,
                              "votes_count": tally.votes_count,

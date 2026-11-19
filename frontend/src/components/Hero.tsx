@@ -11,19 +11,7 @@ export function Hero() {
       {/* Central Character & Halo Visual Composition */}
       <div className="relative flex flex-col items-center justify-center mb-[-24px] sm:mb-[-32px] md:mb-[-40px]">
         {/* Soft atmospheric purple & gold ambient halo glow */}
-        <div className="pointer-events-none absolute -top-8 w-72 h-72 sm:w-88 sm:h-88 md:w-96 md:h-96 rounded-full bg-gradient-to-b from-purple-glow/25 via-burgundy-deep/20 to-transparent blur-3xl opacity-75" />
-
-        {/* The Architect: Hooded character with halo and glowing eyes */}
-        <div className="relative w-72 h-48 sm:w-84 sm:h-56 md:w-[420px] md:h-64 select-none drop-shadow-[0_0_30px_rgba(139,74,168,0.25)]">
-          <Image
-            src="/images/architect_character.png"
-            alt="The Architect — Autonomous Game Master"
-            width={444}
-            height={280}
-            priority
-            className="w-full h-full object-contain object-top"
-          />
-        </div>
+        <div className="pointer-events-none absolute -top-8 w-72 h-72 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-full bg-gradient-to-b from-purple-glow/25 via-burgundy-deep/20 to-transparent blur-3xl opacity-75" />
       </div>
 
       {/* Main Heading: AI TRAITORS */}

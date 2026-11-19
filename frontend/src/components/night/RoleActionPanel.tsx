@@ -98,58 +98,67 @@ export function RoleActionPanel({
       {/* 2. Target Player Selection Row / Grid */}
       {!isSubmitted ? (
         <div className="w-full my-auto py-2">
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 md:gap-7">
-            {targets.map((player) => {
-              const isSelected = selectedTargetId === player.id;
+          {targets.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-6 text-center">
+              <Loader2 className="w-6 h-6 animate-spin text-gold-antique/60 mb-2" />
+              <p className="text-xs sm:text-sm font-sans text-text-secondary/70">
+                Awaiting eligible players in the chamber...
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 md:gap-7">
+              {targets.map((player) => {
+                const isSelected = selectedTargetId === player.id;
 
-              return (
-                <div
-                  key={player.id}
-                  onClick={() => onSelectTarget(player.id)}
-                  className="flex flex-col items-center cursor-pointer group transition-transform active:scale-95"
-                >
-                  {/* Circular Avatar */}
+                return (
                   <div
-                    className={`relative w-12 h-12 sm:w-14 sm:h-14 rounded-full overflow-hidden transition-all duration-300 ${
-                      isSelected
-                        ? config.ringClass
-                        : "ring-1 ring-white/15 group-hover:ring-white/40"
-                    }`}
+                    key={player.id}
+                    onClick={() => onSelectTarget(player.id)}
+                    className="flex flex-col items-center cursor-pointer group transition-transform active:scale-95"
                   >
-                    <Image
-                      src={player.avatarUrl}
-                      alt={player.name}
-                      fill
-                      unoptimized
-                      className="object-cover"
-                    />
-                  </div>
+                    {/* Circular Avatar */}
+                    <div
+                      className={`relative w-12 h-12 sm:w-14 sm:h-14 rounded-full overflow-hidden transition-all duration-300 ${
+                        isSelected
+                          ? config.ringClass
+                          : "ring-1 ring-white/15 group-hover:ring-white/40"
+                      }`}
+                    >
+                      {player.avatarUrl ? <Image
+                        src={player.avatarUrl}
+                        alt={player.name}
+                        fill
+                        unoptimized
+                        className="object-cover"
+                      /> : <span className="flex h-full w-full items-center justify-center bg-[#2a1d2d] text-sm font-bold text-white">{player.name.slice(0, 2).toUpperCase()}</span>}
+                    </div>
 
-                  {/* Player Name */}
-                  <span
-                    className={`text-xs sm:text-sm font-semibold mt-2 transition-colors ${
-                      isSelected ? "text-gold-light" : "text-[#F5EEDC]"
-                    }`}
-                  >
-                    {player.name}
-                  </span>
+                    {/* Player Name */}
+                    <span
+                      className={`text-xs sm:text-sm font-semibold mt-2 transition-colors ${
+                        isSelected ? "text-gold-light" : "text-[#F5EEDC]"
+                      }`}
+                    >
+                      {player.name}
+                    </span>
 
-                  {/* Radio Indicator */}
-                  <div className="mt-1.5 flex items-center justify-center">
-                    {isSelected ? (
-                      <div
-                        className={`w-4 h-4 rounded-full ${config.radioBgClass} flex items-center justify-center shadow-md`}
-                      >
-                        <div className="w-1.5 h-1.5 rounded-full bg-white" />
-                      </div>
-                    ) : (
-                      <div className="w-4 h-4 rounded-full border border-white/25 bg-transparent group-hover:border-white/50" />
-                    )}
+                    {/* Radio Indicator */}
+                    <div className="mt-1.5 flex items-center justify-center">
+                      {isSelected ? (
+                        <div
+                          className={`w-4 h-4 rounded-full ${config.radioBgClass} flex items-center justify-center shadow-md`}
+                        >
+                          <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                        </div>
+                      ) : (
+                        <div className="w-4 h-4 rounded-full border border-white/25 bg-transparent group-hover:border-white/50" />
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       ) : (
         /* Action Submitted Confirmation View */

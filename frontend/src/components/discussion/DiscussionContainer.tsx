@@ -8,7 +8,8 @@ import { DiscussionChatArea } from "./DiscussionChatArea";
 import { DiscussionArchitectPanel } from "./DiscussionArchitectPanel";
 import { useDiscussion } from "@/hooks/useDiscussion";
 import { useGamePhaseGuard } from "@/hooks/useGamePhaseGuard";
-import { MOCK_PLAYER_PROFILE } from "@/services/dashboard";
+import { getPlayerSession } from "@/services/playerSession";
+import { getApiBaseUrl } from "@/services/rooms";
 import { Radio, RotateCcw, Vote, ArrowRight, FastForward, Loader2 } from "lucide-react";
 
 interface DiscussionContainerProps {
@@ -17,8 +18,8 @@ interface DiscussionContainerProps {
 }
 
 export function DiscussionContainer({
-  roomCode = "A7K4D9",
-  roundNumber = 2,
+  roomCode = "",
+  roundNumber = 1,
 }: DiscussionContainerProps) {
   useGamePhaseGuard(roomCode, "DISCUSSION");
   const router = useRouter();
@@ -27,24 +28,53 @@ export function DiscussionContainer({
     state,
     formattedTimer,
     sendMessage,
-    resetTimer,
-    fastForward,
+    consultArchitect,
   } = useDiscussion(roomCode, roundNumber);
 
   const [isAdvancing, setIsAdvancing] = useState(false);
+  const [advanceError, setAdvanceError] = useState("");
 
-  // Auto-transition when countdown finishes
+  const handleProceedToVoting = async () => {
+    if (navigatedRef.current) return;
+    navigatedRef.current = true;
+    setIsAdvancing(true);
+    try {
+      const session = getPlayerSession(roomCode);
+      const response = await fetch(`${getApiBaseUrl()}/api/v1/game/${encodeURIComponent(roomCode)}/advance-phase`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          player_id: session.id,
+          token: session.token,
+          account_token: session.accountToken,
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.phase !== "VOTING") {
+        navigatedRef.current = false;
+        setIsAdvancing(false);
+        setAdvanceError(result.detail || result.message || "The server has not opened voting yet.");
+        return;
+      }
+    } catch {
+      navigatedRef.current = false;
+      setIsAdvancing(false);
+      setAdvanceError("Could not reach the game server to open voting.");
+      return;
+    }
+    router.push(`/game/voting?room=${roomCode}&round=${roundNumber}`);
+  };
+
+  // Route only after the server announces a phase transition. The local clock
+  // is a display; it never advances game state or sends players ahead early.
   useEffect(() => {
-    if (state.timerSeconds === 0 && !navigatedRef.current) {
+    if (state.serverPhase === "VOTING" && !navigatedRef.current) {
       navigatedRef.current = true;
       setIsAdvancing(true);
-      const timer = setTimeout(() => {
-        router.push(`/game/voting?room=${roomCode}&round=${roundNumber}`);
-      }, 1500);
-      return () => clearTimeout(timer);
+      router.push(`/game/voting?room=${roomCode}&round=${roundNumber}`);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.timerSeconds]);
+  }, [state.serverPhase]);
 
   return (
     <div className="min-h-screen bg-background text-text-main flex flex-col selection:bg-purple-muted selection:text-gold-light relative overflow-x-hidden">
@@ -67,7 +97,7 @@ export function DiscussionContainer({
       />
 
       {/* 2. Top Navigation Bar (Reused Master Header) */}
-      <DashboardHeader activeNav="dashboard" profile={MOCK_PLAYER_PROFILE} />
+      <DashboardHeader activeNav="dashboard" profile={{ name: getPlayerSession().name, email: getPlayerSession().email || "", avatarUrl: getPlayerSession().avatarUrl, roleBadge: "" }} />
 
       {/* 3. Main Master 3-Column Layout */}
       <main className="flex-1 w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-5 z-10 flex flex-col justify-between gap-4">
@@ -81,6 +111,7 @@ export function DiscussionContainer({
             <span className="font-mono text-xs text-gold-antique">Loading Ballot Box...</span>
           </div>
         )}
+        {advanceError && <p role="alert" className="text-right text-xs text-red-300">{advanceError}</p>}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch flex-1">
           {/* LEFT COLUMN: Player List (3 cols on lg) */}
@@ -99,6 +130,7 @@ export function DiscussionContainer({
               announcement={state.announcement}
               messages={state.messages}
               onSendMessage={sendMessage}
+              onProceedToVoting={handleProceedToVoting}
             />
           </div>
 
@@ -108,6 +140,7 @@ export function DiscussionContainer({
               roundNumber={state.roundNumber}
               phaseName={state.phaseName}
               phaseType={state.phaseType}
+              onConsult={consultArchitect}
             />
           </div>
         </div>

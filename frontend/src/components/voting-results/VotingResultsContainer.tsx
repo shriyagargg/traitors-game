@@ -9,7 +9,7 @@ import { BanishmentRevealCard } from "./BanishmentRevealCard";
 import { VotingResultsActionFooter } from "./VotingResultsActionFooter";
 import { useVotingResults } from "@/hooks/useVotingResults";
 import { useGamePhaseGuard } from "@/hooks/useGamePhaseGuard";
-import { MOCK_PLAYER_PROFILE } from "@/services/dashboard";
+import { getPlayerSession } from "@/services/playerSession";
 import { Radio, RotateCcw, Skull, Shield, Moon, Trophy } from "lucide-react";
 
 interface VotingResultsContainerProps {
@@ -18,8 +18,8 @@ interface VotingResultsContainerProps {
 }
 
 export function VotingResultsContainer({
-  roomCode = "A7K4D9",
-  roundNumber = 2,
+  roomCode = "",
+  roundNumber = 1,
 }: VotingResultsContainerProps) {
   useGamePhaseGuard(roomCode, "VOTING_RESULTS");
   const {
@@ -49,7 +49,7 @@ export function VotingResultsContainer({
       />
 
       {/* 2. Top Navigation Bar */}
-      <DashboardHeader activeNav="dashboard" profile={MOCK_PLAYER_PROFILE} />
+      <DashboardHeader activeNav="dashboard" profile={{ name: getPlayerSession().name, email: getPlayerSession().email || "", avatarUrl: getPlayerSession().avatarUrl, roleBadge: "" }} />
 
       {/* 3. Main Master 2-Column Layout */}
       <main className="flex-1 w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-5 z-10 flex flex-col justify-between gap-4">

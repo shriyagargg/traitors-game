@@ -777,6 +777,30 @@ async def advance_game_phase(
     if not player or not account_id or player.user_id != account_id or not verify_player_token(tok, room_code, pid):
         raise HTTPException(status_code=403, detail="Valid player session required.")
 
+    # The Morning screen can remain visible briefly after the authoritative
+    # timer has already moved the room forward. Treat a retried Morning action
+    # as a sync request so it cannot accidentally advance DISCUSSION to VOTING.
+    expected_phase_raw = (req.get("expected_phase") if req else None) or ""
+    if str(expected_phase_raw).upper() == GamePhase.MORNING.value:
+        current_phase = engine.state.phase
+        if current_phase == GamePhase.MORNING:
+            new_phase = await coordinator.advance_phase(
+                engine, expected_phase=GamePhase.MORNING, allow_early=True
+            )
+            return {"success": True, "phase": new_phase}
+        if current_phase in (
+            GamePhase.DISCUSSION,
+            GamePhase.VOTING,
+            GamePhase.VOTING_RESULTS,
+            GamePhase.GAME_OVER,
+        ):
+            return {"success": True, "phase": current_phase.value, "already_advanced": True}
+        return {
+            "success": False,
+            "phase": current_phase.value,
+            "message": "The game is no longer in the Morning phase.",
+        }
+
     if engine.state.phase not in (GamePhase.ROLE_REVEAL, GamePhase.MORNING, GamePhase.DISCUSSION, GamePhase.VOTING_RESULTS):
         return {"success": False, "message": "Phase advances automatically or upon action completion."}
 

@@ -30,27 +30,43 @@ export function MorningContainer({
   );
 
   const [navigating, setNavigating] = useState(false);
+  const [advanceError, setAdvanceError] = useState("");
 
   const handleContinue = async () => {
     if (navigating) return;
     setNavigating(true);
+    setAdvanceError("");
     try {
       const session = getPlayerSession(state.roomCode);
-      await fetch(`${getApiBaseUrl()}/api/v1/game/${encodeURIComponent(state.roomCode)}/advance-phase`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/v1/game/${encodeURIComponent(state.roomCode)}/advance-phase`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           player_id: session.id,
           token: session.token,
           account_token: session.accountToken,
+          expected_phase: "MORNING",
         }),
       });
-    } catch {
-      // Backend will also advance on timer
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success || !result.phase) {
+        throw new Error(result.detail || result.message || "The server could not open the discussion phase.");
+      }
+      const phaseRoutes: Record<string, string> = {
+        DISCUSSION: "/game/discussion",
+        VOTING: "/game/voting",
+        VOTING_RESULTS: "/game/voting-results",
+        GAME_OVER: "/game/victory",
+      };
+      const route = phaseRoutes[result.phase];
+      if (!route) {
+        throw new Error(`Unexpected game phase: ${String(result.phase || "unknown").toLowerCase().replaceAll("_", " ")}. Please try again.`);
+      }
+      router.push(`${route}?room=${encodeURIComponent(state.roomCode)}&round=${state.roundNumber}`);
+    } catch (error) {
+      setAdvanceError(error instanceof Error ? error.message : "The discussion phase could not be opened. Check your connection and try again.");
+      setNavigating(false);
     }
-    setTimeout(() => {
-      router.push(`/game/discussion?room=${state.roomCode}&round=${state.roundNumber}`);
-    }, 400);
   };
 
   return (
@@ -123,6 +139,7 @@ export function MorningContainer({
                   </>
                 )}
               </button>
+              {advanceError && <p role="alert" className="mt-2 text-xs text-red-300">{advanceError}</p>}
             </div>
           </div>
         </div>

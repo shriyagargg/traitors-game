@@ -106,6 +106,9 @@ export class DiscussionService {
         timerSeconds: remaining,
         roundNumber: data.round_number || this.state.roundNumber,
       });
+      // Re-arm the display from the server deadline after initial sync,
+      // reconnect, or a phase update. The client never owns the deadline.
+      this.startCountdown();
     }
 
     const announcementText =
@@ -145,14 +148,8 @@ export class DiscussionService {
             this.syncState(packet.payload, session.id);
           } else if (packet.type === "PHASE_CHANGED") {
             const nextPhase = packet.payload?.phase;
-            if (nextPhase) this.updateState({ serverPhase: nextPhase });
-            if (nextPhase === "VOTING") {
-              this.serverPhaseEndsAt = packet.payload.phase_ends_at || 0;
-              this.updateState({ isTimeUp: false, timerSeconds: Math.max(0, Math.ceil(this.serverPhaseEndsAt - Date.now() / 1000)) });
-              this.startCountdown();
-            } else if (packet.payload) {
-              this.syncState(packet.payload, session.id);
-            }
+            if (packet.payload) this.syncState(packet.payload, session.id);
+            else if (nextPhase) this.updateState({ serverPhase: nextPhase });
           } else if (
             (packet.type === "DISCUSSION_MESSAGE" || packet.type === "CHAT_MESSAGE") &&
             packet.payload

@@ -62,7 +62,9 @@ export function getRoleDistribution(capacity: PlayerCapacity): RoleBreakdown {
 
 export function getApiBaseUrl(): string {
   if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
+    // All API request paths are joined with a leading slash. Strip any
+    // trailing slash from the configured origin to avoid `host//api/...`.
+    return process.env.NEXT_PUBLIC_API_URL.replace(/\/+$/, "");
   }
   if (typeof window !== "undefined") {
     const protocol = window.location.protocol;
@@ -78,7 +80,7 @@ export function getApiBaseUrl(): string {
 
 export function getWsBaseUrl(): string {
   if (process.env.NEXT_PUBLIC_WS_URL) {
-    return process.env.NEXT_PUBLIC_WS_URL;
+    return process.env.NEXT_PUBLIC_WS_URL.replace(/\/+$/, "");
   }
   if (typeof window !== "undefined") {
     const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
